@@ -8,14 +8,17 @@ export function erroParaParam(error: PersistenceError): string {
       return 'dados'
     case 'entrada-invalida':
       return 'entrada'
+    case 'confirmacao-necessaria':
+      return 'confirmacao'
     case 'armazenamento-indisponivel':
       return 'persistencia'
   }
 }
 
 export const MENSAGENS_ERRO: Record<string, string> = {
-  conflito: 'As anotações mudaram em outra sessão. Recarregue para ver a versão mais recente.',
+  conflito: 'Os dados mudaram em outra sessão. Recarregue para ver a versão mais recente.',
   dados: 'Os dados salvos estão em formato inesperado.',
   persistencia: 'Não foi possível salvar agora. Tente novamente.',
-  entrada: 'Data inválida.',
+  entrada: 'Algum campo está em formato inválido. Revise e tente novamente.',
+  confirmacao: 'Este compromisso é fixo. Marque a confirmação para alterá-lo.',
 }

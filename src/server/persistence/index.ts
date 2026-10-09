@@ -9,7 +9,7 @@ export async function createStateStore(env: NodeJS.ProcessEnv): Promise<StateSto
   if (driver === 'memory') return new MemoryStateStore()
   if (driver !== 'postgres') return storeIndisponivel()
 
-  const url = env.POSTGRES_URL
+  const url = env.POSTGRES_URL ?? urlPostgresIntegracao(env)
   if (!url) return storeIndisponivel()
 
   try {
@@ -18,6 +18,12 @@ export async function createStateStore(env: NodeJS.ProcessEnv): Promise<StateSto
   } catch {
     return storeIndisponivel()
   }
+}
+
+// Integrações de Postgres na Vercel podem prefixar as variáveis (ex.: `<banco>_POSTGRES_URL`).
+function urlPostgresIntegracao(env: NodeJS.ProcessEnv): string | undefined {
+  const chave = Object.keys(env).find((k) => k.endsWith('_POSTGRES_URL') && env[k])
+  return chave ? env[chave] : undefined
 }
 
 export function getStateStore(): Promise<StateStore> {

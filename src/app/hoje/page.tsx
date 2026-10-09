@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import styles from './hoje.module.css'
 import { getStateStore } from '@/server/persistence'
 import { MENSAGENS_ERRO } from '@/server/persistence/mensagens'
@@ -50,6 +51,8 @@ export default async function HojePage({ searchParams }: Props) {
           Salvar anotação
         </button>
       </form>
+
+      <Link href="/configurar">Configurar rotina</Link>
 
       <form action="/api/auth/logout" method="post">
         <button className={styles.logout} type="submit">
