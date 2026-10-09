@@ -2,6 +2,7 @@ import { SchemaInvalidoError } from '../persistence/schema-error'
 import type { PersistenceResult, StateStore } from '../persistence/store'
 import type { InstanciaDiaria } from '../dia/modelo'
 import { LimitePrioridadesError, validarInstancia } from '../dia/modelo'
+import { AlertasPendentesError } from '../dia/alertas'
 import {
   ConfirmacaoFixoError,
   ItemNaoEncontradoError,
@@ -55,6 +56,9 @@ export async function atualizarDia(
     }
     if (error instanceof LimitePrioridadesError) {
       return { ok: false, error: { kind: 'prioridade-cheia', detalhe: error.message } }
+    }
+    if (error instanceof AlertasPendentesError) {
+      return { ok: false, error: { kind: 'alerta-pendente', detalhe: error.message } }
     }
     return {
       ok: false,

@@ -253,4 +253,39 @@ describe('POST /api/dia', () => {
     expect(instancia.prioridades).toEqual([])
     expect(instancia.itens.some((i) => i.id === itens[0].id)).toBe(true)
   })
+
+  it('confirmar com alertas exige reconhecimento consciente', async () => {
+    const amanha = dataCivilAmanha()
+    await comSemanaConfirmada((r) =>
+      acrescentarCompromisso(r, {
+        titulo: 'Exame',
+        diaSemana: diaSemanaDe(amanha),
+        inicio: '09:00',
+        duracaoMin: 60,
+        categoria: 'saude',
+        tipo: 'fixo',
+      })
+    )
+    await requisicao({ acao: 'planejar' })
+    // provoca sobreposição movendo o item flexível para cima do fixo
+    const instancia = (await estadoAtual()).dados.dias[amanha]
+    const flexivel = instancia.itens.find(
+      (i) => i.protecao === 'flexivel' && i.inicio !== null && i.titulo === 'Trabalho'
+    )!
+    const fixo = instancia.itens.find((i) => i.protecao === 'fixo' && i.inicio !== null)!
+    await requisicao({
+      acao: 'ajustar',
+      data: amanha,
+      id: flexivel.id,
+      inicio: fixo.inicio!,
+    })
+
+    const bloqueado = await requisicao({ acao: 'confirmar', data: amanha })
+    expect(bloqueado.headers.get('location')).toMatch(/erro=/)
+    expect((await estadoAtual()).dados.dias[amanha].confirmadaEm).toBeNull()
+
+    const confirmado = await requisicao({ acao: 'confirmar', data: amanha, ciente: 'on' })
+    expect(confirmado.headers.get('location')).toBe('/amanha?confirmado=1')
+    expect((await estadoAtual()).dados.dias[amanha].confirmadaEm).not.toBeNull()
+  })
 })
