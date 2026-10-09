@@ -6,6 +6,7 @@ import { estadoVazio } from '@/server/persistence/estado'
 import { gerarPropostaSemanal } from '@/server/proposta/gerar'
 import { confirmarProposta } from '@/server/proposta/modelo'
 import { gerarInstanciaDiaria } from '@/server/dia/gerar'
+import { concluirRevisao, registrarEstado } from '@/server/dia/modelo'
 import { dataCivilAmanha, dataCivilHoje, diaSemanaDe, somarDiasCivil } from '@/server/tempo'
 import {
   acrescentarCompromisso,
@@ -60,6 +61,36 @@ async function comDiaHoje() {
     lido.value.version
   )
   return { hoje, instancia }
+}
+
+async function comDiaConcluidoOntem() {
+  const ontem = somarDiasCivil(dataCivilHoje(), -1)
+  await comSemanaConfirmada((r) =>
+    acrescentarCompromisso(r, {
+      titulo: 'Consulta',
+      diaSemana: diaSemanaDe(ontem),
+      inicio: '10:00',
+      duracaoMin: 30,
+      categoria: 'saude',
+      tipo: 'fixo',
+    })
+  )
+  const store = await getStateStore()
+  const lido = await store.load()
+  if (!lido.ok) throw new Error('store indisponível no teste')
+  let instancia = gerarInstanciaDiaria(
+    lido.value.dados.semanaAtiva!,
+    lido.value.dados.rotina,
+    ontem,
+    lido.value.version
+  )
+  instancia = registrarEstado(instancia, instancia.itens[0].id, 'realizado')
+  instancia = concluirRevisao(instancia, {}, new Date('2026-10-13T21:00:00Z'))
+  await store.save(
+    { ...lido.value.dados, dias: { ...lido.value.dados.dias, [ontem]: instancia } },
+    lido.value.version
+  )
+  return { ontem, instancia }
 }
 
 async function comSemanaConfirmada(extra?: (r: RotinaRecorrente) => RotinaRecorrente) {
@@ -402,6 +433,19 @@ describe('POST /api/dia — revisão', () => {
     expect(atual.itens.find((i) => i.id === item.id)!.inicio).toBe(item.inicio)
   })
 
+  it('rejeita revisão de dia que já passou — histórico só muda por correção', async () => {
+    const { ontem } = await comDiaConcluidoOntem()
+
+    const resposta = await requisicao({
+      acao: 'revisar-item',
+      data: ontem,
+      id: 'qualquer',
+      estado: 'realizado',
+    })
+
+    expect(resposta.headers.get('location')).toBe('/hoje?erro=entrada')
+  })
+
   it('estado fora do conjunto devolve erro de entrada', async () => {
     const { hoje, instancia } = await comDiaHoje()
 
@@ -698,5 +742,112 @@ describe('POST /api/dia — visão da semana', () => {
     expect(resposta.headers.get('location')).toBe('/semana?salvo=1')
     const salvo = (await estadoAtual()).dados.dias[hoje]
     expect(salvo.itens.find((i) => i.id === item.id)?.inicio).toBe('19:00')
+  })
+})
+
+describe('revisao-corrigir', () => {
+  it('corrige estado com confirmação e redireciona ao histórico', async () => {
+    const { ontem, instancia } = await comDiaConcluidoOntem()
+    const item = instancia.itens[0]
+
+    const resposta = await requisicao({
+      acao: 'revisao-corrigir',
+      data: ontem,
+      id: item.id,
+      estado: 'parcial',
+      confirmar: 'on',
+      volta: 'historico',
+    })
+
+    expect(resposta.headers.get('location')).toBe(`/historico/${ontem}?corrigido=1`)
+    const salvo = (await estadoAtual()).dados.dias[ontem]
+    expect(salvo.revisao.estados[item.id]).toBe('parcial')
+    expect(salvo.revisao.correcoes).toHaveLength(1)
+    expect(salvo.revisao.correcoes[0].anterior).toBe('realizado')
+  })
+
+  it('exige confirmação explícita', async () => {
+    const { ontem, instancia } = await comDiaConcluidoOntem()
+
+    const resposta = await requisicao({
+      acao: 'revisao-corrigir',
+      data: ontem,
+      id: instancia.itens[0].id,
+      estado: 'parcial',
+      volta: 'historico',
+    })
+
+    expect(resposta.headers.get('location')).toBe(`/historico/${ontem}?erro=confirmacao-correcao`)
+    expect((await estadoAtual()).dados.dias[ontem].revisao.estados[instancia.itens[0].id]).toBe(
+      'realizado'
+    )
+  })
+
+  it('rejeita correção em revisão não concluída', async () => {
+    const ontem = somarDiasCivil(dataCivilHoje(), -1)
+    await comSemanaConfirmada()
+    const store = await getStateStore()
+    const lido = await store.load()
+    if (!lido.ok) throw new Error('store indisponível no teste')
+    const instancia = gerarInstanciaDiaria(
+      lido.value.dados.semanaAtiva!,
+      lido.value.dados.rotina,
+      ontem,
+      lido.value.version
+    )
+    await store.save(
+      { ...lido.value.dados, dias: { ...lido.value.dados.dias, [ontem]: instancia } },
+      lido.value.version
+    )
+
+    const resposta = await requisicao({
+      acao: 'revisao-corrigir',
+      data: ontem,
+      id: instancia.itens[0].id,
+      estado: 'realizado',
+      confirmar: 'on',
+      volta: 'historico',
+    })
+
+    expect(resposta.headers.get('location')).toBe(`/historico/${ontem}?erro=entrada`)
+  })
+
+  it('rejeita correção no dia de hoje ou futuro', async () => {
+    const resposta = await requisicao({
+      acao: 'revisao-corrigir',
+      data: dataCivilHoje(),
+      id: 'qualquer',
+      estado: 'realizado',
+      confirmar: 'on',
+      volta: 'historico',
+    })
+
+    expect(resposta.headers.get('location')).toBe(`/historico/${dataCivilHoje()}?erro=entrada`)
+  })
+
+  it('rejeita estado inválido e mesmo estado', async () => {
+    const { ontem, instancia } = await comDiaConcluidoOntem()
+    const item = instancia.itens[0]
+
+    const invalido = await requisicao({
+      acao: 'revisao-corrigir',
+      data: ontem,
+      id: item.id,
+      estado: 'talvez',
+      confirmar: 'on',
+      volta: 'historico',
+    })
+    expect(invalido.headers.get('location')).toBe(`/historico/${ontem}?erro=entrada`)
+
+    const mesmo = await requisicao({
+      acao: 'revisao-corrigir',
+      data: ontem,
+      id: item.id,
+      estado: 'realizado',
+      confirmar: 'on',
+      volta: 'historico',
+    })
+    expect(mesmo.headers.get('location')).toBe(`/historico/${ontem}?erro=entrada`)
+    expect((await estadoAtual()).dados.dias[ontem].revisao.correcoes).toHaveLength(0)
   })
 })

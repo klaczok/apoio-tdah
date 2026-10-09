@@ -10,6 +10,7 @@ import {
   anotarDia,
   concluirRevisao,
   confirmarDia,
+  corrigirEstadoRevisao,
   decidirPendencia,
   dividirTarefa,
   editarTarefa,
@@ -210,8 +211,9 @@ function aplicador(acao: string, form: FormData): Plano {
     }
     case 'revisar-item': {
       const data = dataDo(form)
-      // Revisão olha o que aconteceu — dias futuros não são revisáveis.
-      if (data > dataCivilHoje()) throw new SchemaInvalidoError('data inválida')
+      // Revisão é o fluxo de hoje — dias passados ficam no histórico, onde a
+      // única mutação é a correção explícita e auditada.
+      if (data !== dataCivilHoje()) throw new SchemaInvalidoError('data inválida')
       const estado = String(form.get('estado') ?? '')
       if (estado !== '' && !ehEstadoRevisao(estado)) {
         throw new SchemaInvalidoError('estado de revisão inválido')
@@ -226,7 +228,7 @@ function aplicador(acao: string, form: FormData): Plano {
     }
     case 'revisar-concluir': {
       const data = dataDo(form)
-      if (data > dataCivilHoje()) throw new SchemaInvalidoError('data inválida')
+      if (data !== dataCivilHoje()) throw new SchemaInvalidoError('data inválida')
       const energia = textoOuNulo(form, 'energia')
       const sobrecarga = textoOuNulo(form, 'sobrecarga')
       if (energia !== null && !ehEnergiaRevisao(energia)) {
@@ -260,8 +262,8 @@ function aplicador(acao: string, form: FormData): Plano {
     case 'pendencia-prever': {
       const data = dataDo(form)
       const destino = String(form.get('destino') ?? '')
-      // Mesma janela de revisão: o dia de origem já aconteceu ou é hoje.
-      if (data > dataCivilHoje() || !ehDataCivil(destino) || destino <= data) {
+      // Decisões de pendência também são fluxo do dia corrente.
+      if (data !== dataCivilHoje() || !ehDataCivil(destino) || destino <= data) {
         throw new SchemaInvalidoError('data inválida')
       }
       // Não grava nada — só devolve a página com a prévia do destino.
@@ -269,7 +271,7 @@ function aplicador(acao: string, form: FormData): Plano {
     }
     case 'pendencia-decidir': {
       const data = dataDo(form)
-      if (data > dataCivilHoje()) throw new SchemaInvalidoError('data inválida')
+      if (data !== dataCivilHoje()) throw new SchemaInvalidoError('data inválida')
       const tipo = String(form.get('tipo') ?? '')
       if (!ehDestinoPendencia(tipo)) {
         throw new SchemaInvalidoError('destino de pendência inválido')
@@ -331,6 +333,22 @@ function aplicador(acao: string, form: FormData): Plano {
             : undefined,
       }
     }
+    case 'revisao-corrigir': {
+      const data = dataDo(form)
+      // Correção vale para revisões já concluídas de dias que passaram.
+      if (data >= dataCivilHoje()) throw new SchemaInvalidoError('data inválida')
+      const estado = String(form.get('estado') ?? '')
+      if (!ehEstadoRevisao(estado)) throw new SchemaInvalidoError('estado de revisão inválido')
+      return {
+        data,
+        aplicar: ({ instancia }) => {
+          if (!instancia) throw new ItemNaoEncontradoError('dia não planejado')
+          return {
+            instancia: corrigirEstadoRevisao(instancia, id, estado, confirmar, new Date()),
+          }
+        },
+      }
+    }
     case 'nota-dia': {
       const data = dataDo(form)
       return {
@@ -354,8 +372,19 @@ export async function POST(request: Request) {
   const revisao = acao.startsWith('revisar-') || acao.startsWith('pendencia-')
   // `volta` devolve para a tela de origem — whitelist, nunca URL livre.
   const volta = String(form.get('volta') ?? '')
+  const dataForm = String(form.get('data') ?? '')
   const pagina =
-    volta === 'semana' ? '/semana' : volta === 'hoje' ? '/hoje' : revisao ? '/hoje' : '/amanha'
+    volta === 'semana'
+      ? '/semana'
+      : volta === 'hoje'
+        ? '/hoje'
+        : volta === 'historico'
+          ? ehDataCivil(dataForm)
+            ? `/historico/${dataForm}`
+            : '/historico'
+          : revisao
+            ? '/hoje'
+            : '/amanha'
   let plano: ReturnType<typeof aplicador>
   try {
     plano = aplicador(acao, form)
@@ -397,5 +426,6 @@ export async function POST(request: Request) {
     )
   }
   if (acao === 'pendencia-decidir') return redirecionar('/hoje?decisao=1')
+  if (acao === 'revisao-corrigir') return redirecionar(`${pagina}?corrigido=1`)
   return redirecionar(`${pagina}?salvo=1`)
 }

@@ -76,12 +76,23 @@ export type EnergiaRevisao = (typeof ESCALAS_ENERGIA)[number]
 export const ESCALAS_SOBRECARGA = ['leve', 'ok', 'pesada'] as const
 export type SobrecargaRevisao = (typeof ESCALAS_SOBRECARGA)[number]
 
+// Correção explícita de um estado em revisão já concluída — guarda o que
+// estava registrado e o que ficou, para distinguir os dois registros.
+export type CorrecaoEstado = {
+  itemId: string
+  // null quando o item estava "sem registro" antes da correção.
+  anterior: EstadoRevisao | null
+  corrigido: EstadoRevisao
+  registradaEm: string
+}
+
 // Revisão noturna do dia: estados factuais por item/tarefa, escalas curtas e
 // campos reflexivos opcionais — sem pontuação, ranking ou interpretação
 // clínica. Ausência de estado é "sem registro", nunca uma falha implícita.
 export type RevisaoDiaria = {
   estados: Record<string, EstadoRevisao>
   decisoes: Record<string, DecisaoPendencia>
+  correcoes: CorrecaoEstado[]
   energia: EnergiaRevisao | null
   sobrecarga: SobrecargaRevisao | null
   motivo: string | null
@@ -93,6 +104,7 @@ export function revisaoVazia(): RevisaoDiaria {
   return {
     estados: {},
     decisoes: {},
+    correcoes: [],
     energia: null,
     sobrecarga: null,
     motivo: null,
@@ -114,6 +126,33 @@ export function ehDestinoPendencia(valor: string): valor is DestinoPendencia {
   return (DESTINOS_PENDENCIA as readonly string[]).includes(valor)
 }
 
+export const ROTULOS_ESTADO: Record<EstadoRevisao, string> = {
+  realizado: 'Realizado',
+  parcial: 'Parcial',
+  reprogramado: 'Reprogramado',
+  descartado: 'Descartado',
+}
+
+export const ROTULOS_ENERGIA: Record<EnergiaRevisao, string> = {
+  baixa: 'Baixa',
+  ok: 'Ok',
+  alta: 'Alta',
+}
+
+export const ROTULOS_SOBRECARGA: Record<SobrecargaRevisao, string> = {
+  leve: 'Leve',
+  ok: 'Ok',
+  pesada: 'Pesada',
+}
+
+export const ROTULOS_DESTINO: Record<DestinoPendencia, string> = {
+  manter: 'Manter',
+  reduzir: 'Reduzir',
+  dividir: 'Dividir',
+  'trocar-dia': 'Trocar de dia',
+  descartar: 'Descartar',
+}
+
 // Decisão explícita sobre uma pendência, registrada na revisão do dia de
 // origem — nunca reagenda sozinha e nunca toca a rotina recorrente.
 export type DecisaoPendencia = {
@@ -133,6 +172,15 @@ export class LimitePrioridadesError extends Error {
   constructor() {
     super('no máximo três prioridades')
     this.name = 'LimitePrioridadesError'
+  }
+}
+
+// Corrigir estado em revisão concluída exige confirmação específica —
+// o histórico é somente leitura por padrão.
+export class ConfirmacaoCorrecaoError extends Error {
+  constructor() {
+    super('correção sem confirmação explícita')
+    this.name = 'ConfirmacaoCorrecaoError'
   }
 }
 
@@ -260,7 +308,7 @@ export function ehSobrecargaRevisao(valor: string): valor is SobrecargaRevisao {
 function validarRevisao(raw: unknown): RevisaoDiaria {
   if (raw === undefined || raw === null) return revisaoVazia()
   if (!ehObjeto(raw)) throw new SchemaInvalidoError('revisão não é um objeto')
-  const { estados, decisoes, energia, sobrecarga, motivo, nota, concluidaEm } = raw
+  const { estados, decisoes, correcoes, energia, sobrecarga, motivo, nota, concluidaEm } = raw
   const mapa: Record<string, EstadoRevisao> = {}
   if (estados !== undefined && estados !== null) {
     if (!ehObjeto(estados)) throw new SchemaInvalidoError('estados da revisão inválidos')
@@ -292,12 +340,20 @@ function validarRevisao(raw: unknown): RevisaoDiaria {
       mapaDecisoes[id] = validarDecisao(decisao)
     }
   }
+  const listaCorrecoes: CorrecaoEstado[] = []
+  if (correcoes !== undefined && correcoes !== null) {
+    if (!Array.isArray(correcoes)) throw new SchemaInvalidoError('correções da revisão inválidas')
+    for (const correcao of correcoes) {
+      listaCorrecoes.push(validarCorrecao(correcao))
+    }
+  }
   if (concluidaEm !== undefined && concluidaEm !== null && typeof concluidaEm !== 'string') {
     throw new SchemaInvalidoError('conclusão da revisão inválida')
   }
   return {
     estados: mapa,
     decisoes: mapaDecisoes,
+    correcoes: listaCorrecoes,
     energia: (energia ?? null) as EnergiaRevisao | null,
     sobrecarga: (sobrecarga ?? null) as SobrecargaRevisao | null,
     motivo: (motivo ?? null) as string | null,
@@ -649,7 +705,8 @@ export function anotarDia(instancia: InstanciaDiaria, nota: string): InstanciaDi
 // A revisão registra o que aconteceu — não é edição do plano, então vale
 // também depois do dia confirmado. `estado` null limpa o registro do item:
 // ausência de estado permanece "sem registro", nunca falha implícita.
-// Revisão concluída é imutável — não existe fluxo de correção por enquanto.
+// Revisão concluída é imutável aqui — correção explícita vive em
+// `corrigirEstadoRevisao`, usada pelo histórico com trilha de auditoria.
 export function registrarEstado(
   instancia: InstanciaDiaria,
   id: string,
@@ -817,6 +874,28 @@ export function incluirPendencia(
   return { ...instancia, tarefas: [...instancia.tarefas, tarefa] }
 }
 
+function validarCorrecao(raw: unknown): CorrecaoEstado {
+  if (!ehObjeto(raw)) throw new SchemaInvalidoError('correção não é um objeto')
+  const { itemId, anterior, corrigido, registradaEm } = raw
+  if (typeof itemId !== 'string' || !itemId) {
+    throw new SchemaInvalidoError('item da correção inválido')
+  }
+  if (
+    anterior !== undefined &&
+    anterior !== null &&
+    (typeof anterior !== 'string' || !ehEstadoRevisao(anterior))
+  ) {
+    throw new SchemaInvalidoError('estado anterior da correção inválido')
+  }
+  if (typeof corrigido !== 'string' || !ehEstadoRevisao(corrigido)) {
+    throw new SchemaInvalidoError('estado corrigido inválido')
+  }
+  if (typeof registradaEm !== 'string' || !registradaEm) {
+    throw new SchemaInvalidoError('registro da correção inválido')
+  }
+  return { itemId, anterior: (anterior ?? null) as EstadoRevisao | null, corrigido, registradaEm }
+}
+
 // Síntese factual: conta estados declarados, inclui "sem registro" para o
 // que ficou sem marcação e não emite julgamento, nota ou ranking.
 export function sinteseRevisao(instancia: InstanciaDiaria): string {
@@ -843,4 +922,40 @@ export function sinteseRevisao(instancia: InstanciaDiaria): string {
     `${contagem.semRegistro} sem registro`,
   ]
   return `De ${ids.length} itens: ${partes.join(' · ')}.`
+}
+
+// Correção explícita em revisão já concluída — usada pelo histórico.
+// Não reabre a revisão nem mexe na rotina: só troca o estado do item e
+// registra a trilha anterior → corrigido.
+export function corrigirEstadoRevisao(
+  instancia: InstanciaDiaria,
+  id: string,
+  estado: EstadoRevisao,
+  confirmar: boolean,
+  agora = new Date()
+): InstanciaDiaria {
+  if (!instancia.revisao.concluidaEm) {
+    throw new SchemaInvalidoError('só revisão concluída aceita correção')
+  }
+  exigirItem(instancia, id)
+  if (!ehEstadoRevisao(estado)) throw new SchemaInvalidoError('estado de revisão inválido')
+  if (!confirmar) throw new ConfirmacaoCorrecaoError()
+  const anterior = instancia.revisao.estados[id] ?? null
+  if (anterior === estado) {
+    throw new SchemaInvalidoError('estado igual ao já registrado')
+  }
+  const correcao: CorrecaoEstado = {
+    itemId: id,
+    anterior,
+    corrigido: estado,
+    registradaEm: agora.toISOString(),
+  }
+  return {
+    ...instancia,
+    revisao: {
+      ...instancia.revisao,
+      estados: { ...instancia.revisao.estados, [id]: estado },
+      correcoes: [...instancia.revisao.correcoes, correcao],
+    },
+  }
 }

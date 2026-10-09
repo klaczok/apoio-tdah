@@ -12,6 +12,8 @@ export function erroParaParam(error: PersistenceError): string {
       return 'confirmacao'
     case 'confirmacao-destino':
       return 'confirmacao-destino'
+    case 'confirmacao-correcao':
+      return 'confirmacao-correcao'
     case 'item-ausente':
       return 'ausente'
     case 'prioridade-cheia':
@@ -34,4 +36,6 @@ export const MENSAGENS_ERRO: Record<string, string> = {
   alerta: 'O dia tem alertas. Marque o reconhecimento para confirmar.',
   'confirmacao-destino':
     'Veja os conflitos e a capacidade do dia de destino e marque a confirmação para trocar.',
+  'confirmacao-correcao':
+    'A correção de um dia já revisado é explícita: marque a confirmação para registrar.',
 }
