@@ -68,23 +68,12 @@ export class PostgresStateStore implements StateStore {
     const row = rows[0]
     if (!row) return { ok: false, error: { kind: 'armazenamento-indisponivel' } }
 
-    const schemaVersion = row.schema_version
-    if (schemaVersion !== SCHEMA_VERSION) {
-      return {
-        ok: false,
-        error: {
-          kind: 'schema-invalido',
-          detalhe: `versão de schema não suportada: ${schemaVersion}`,
-        },
-      }
-    }
-
     if (row.dados === null) {
       return { ok: true, value: { version: Number(row.version), dados: estadoVazio() } }
     }
 
     try {
-      const dados = validarEstadoPrivado(row.dados)
+      const dados = validarEstadoPrivado(row.dados, Number(row.schema_version))
       return { ok: true, value: { version: Number(row.version), dados } }
     } catch (error) {
       return {
@@ -102,7 +91,7 @@ export class PostgresStateStore implements StateStore {
     if (!schema.ok) return schema
 
     try {
-      validarEstadoPrivado(dados)
+      validarEstadoPrivado(dados, SCHEMA_VERSION)
     } catch (error) {
       return {
         ok: false,
@@ -113,44 +102,23 @@ export class PostgresStateStore implements StateStore {
       }
     }
 
-    let rowCount
     try {
-      ;({ rowCount } = await this.db.query(
+      const { rowCount } = await this.db.query(
         `UPDATE estado_usuario
          SET dados = $1::jsonb,
+             schema_version = $2,
              version = version + 1,
              atualizado_em = now()
-         WHERE id = $2 AND version = $3 AND schema_version = $4`,
-        [JSON.stringify(dados), ROW_ID, expectedVersion, SCHEMA_VERSION]
-      ))
+         WHERE id = $3 AND version = $4`,
+        [JSON.stringify(dados), SCHEMA_VERSION, ROW_ID, expectedVersion]
+      )
+      if (!rowCount) {
+        return { ok: false, error: { kind: 'conflito-versao' } }
+      }
+      return { ok: true, value: expectedVersion + 1 }
     } catch (error) {
       console.error('falha ao gravar estado', error)
       return { ok: false, error: { kind: 'armazenamento-indisponivel' } }
     }
-
-    if (rowCount) {
-      return { ok: true, value: expectedVersion + 1 }
-    }
-
-    try {
-      const { rows } = await this.db.query(
-        'SELECT schema_version FROM estado_usuario WHERE id = $1',
-        [ROW_ID]
-      )
-      if (rows[0] && rows[0].schema_version !== SCHEMA_VERSION) {
-        return {
-          ok: false,
-          error: {
-            kind: 'schema-invalido',
-            detalhe: `versão de schema não suportada: ${rows[0].schema_version}`,
-          },
-        }
-      }
-    } catch (error) {
-      console.error('falha ao investigar conflito de gravação', error)
-      return { ok: false, error: { kind: 'armazenamento-indisponivel' } }
-    }
-
-    return { ok: false, error: { kind: 'conflito-versao' } }
   }
 }

@@ -2,6 +2,7 @@ import {
   estadoVazio,
   validarEstadoPrivado,
   SchemaInvalidoError,
+  SCHEMA_VERSION,
   type EstadoPrivado,
 } from './estado'
 import type { PersistenceResult, EstadoCarregado, StateStore } from './store'
@@ -9,6 +10,7 @@ import type { PersistenceResult, EstadoCarregado, StateStore } from './store'
 export type CelulaMemoria = {
   dados: unknown
   version: number
+  schemaVersion?: number
   indisponivel: boolean
 }
 
@@ -27,7 +29,10 @@ export class MemoryStateStore implements StateStore {
       return { ok: true, value: { version: this.celula.version, dados: estadoVazio() } }
     }
     try {
-      const dados = validarEstadoPrivado(clonar(this.celula.dados))
+      const dados = validarEstadoPrivado(
+        clonar(this.celula.dados),
+        this.celula.schemaVersion ?? SCHEMA_VERSION
+      )
       return { ok: true, value: { version: this.celula.version, dados } }
     } catch (error) {
       return {
@@ -45,7 +50,7 @@ export class MemoryStateStore implements StateStore {
       return { ok: false, error: { kind: 'armazenamento-indisponivel' } }
     }
     try {
-      validarEstadoPrivado(dados)
+      validarEstadoPrivado(dados, SCHEMA_VERSION)
     } catch (error) {
       return {
         ok: false,
@@ -59,6 +64,7 @@ export class MemoryStateStore implements StateStore {
       return { ok: false, error: { kind: 'conflito-versao' } }
     }
     this.celula.dados = clonar(dados)
+    this.celula.schemaVersion = SCHEMA_VERSION
     this.celula.version += 1
     return { ok: true, value: this.celula.version }
   }

@@ -4,13 +4,18 @@ import { newDb, type IMemoryDb } from 'pg-mem'
 import { MemoryStateStore, type CelulaMemoria } from '@/server/persistence/memory'
 import { PostgresStateStore, type Queryable } from '@/server/persistence/postgres'
 import type { StateStore } from '@/server/persistence/store'
-import { estadoVazio } from '@/server/persistence/estado'
+import { estadoVazio, SCHEMA_VERSION, type EstadoPrivado } from '@/server/persistence/estado'
+import { rotinaVazia } from '@/server/rotina/modelo'
+
+function dados(notasPorDia: Record<string, string>): EstadoPrivado {
+  return { notasPorDia, rotina: rotinaVazia() }
+}
 
 type Cenario = {
   nome: string
   preparar: () => Promise<{
     store: StateStore
-    corromper: (valor: unknown) => Promise<void>
+    corromper: (valor: unknown, schemaVersion?: number) => Promise<void>
     quebrar: () => Promise<void>
   }>
 }
@@ -23,8 +28,9 @@ const cenarios: Cenario[] = [
       const store = new MemoryStateStore(celula)
       return {
         store,
-        corromper: async (valor) => {
+        corromper: async (valor, schemaVersion) => {
           celula.dados = valor
+          if (schemaVersion !== undefined) celula.schemaVersion = schemaVersion
         },
         quebrar: async () => {
           celula.indisponivel = true
@@ -45,8 +51,11 @@ const cenarios: Cenario[] = [
       const store = new PostgresStateStore(proxy)
       return {
         store,
-        corromper: async (valor) => {
-          await pool.query('UPDATE estado_usuario SET dados = $1::jsonb', [JSON.stringify(valor)])
+        corromper: async (valor, schemaVersion) => {
+          await pool.query('UPDATE estado_usuario SET dados = $1::jsonb, schema_version = $2', [
+            JSON.stringify(valor),
+            schemaVersion ?? SCHEMA_VERSION,
+          ])
         },
         quebrar: async () => {
           quebrado = true
@@ -67,21 +76,20 @@ describe.each(cenarios)('contrato StateStore — $nome', ({ preparar }) => {
 
   it('gravação seguida de leitura devolve os mesmos dados', async () => {
     const { store } = await preparar()
-    const dados = { notasPorDia: { '2026-10-09': 'levar documento' } }
+    const esperado = dados({ '2026-10-09': 'levar documento' })
 
-    expect(await store.save(dados, 0)).toEqual({ ok: true, value: 1 })
+    expect(await store.save(esperado, 0)).toEqual({ ok: true, value: 1 })
 
     const lido = await store.load()
-    expect(lido.ok && lido.value.dados).toEqual(dados)
+    expect(lido.ok && lido.value.dados).toEqual(esperado)
     expect(lido.ok && lido.value.version).toBe(1)
   })
 
   it('faz round-trip de caracteres especiais conforme serialização canônica', async () => {
     const { store } = await preparar()
     const texto = 'Aspas "duplas", vírgula; ponto-e-vírgula\nnova linha\r\nCRLF\tTab áéíóú çñ 😀'
-    const dados = { notasPorDia: { '2026-10-09': texto } }
 
-    await store.save(dados, 0)
+    await store.save(dados({ '2026-10-09': texto }), 0)
 
     const lido = await store.load()
     expect(lido.ok && lido.value.dados.notasPorDia['2026-10-09']).toBe(texto)
@@ -90,8 +98,8 @@ describe.each(cenarios)('contrato StateStore — $nome', ({ preparar }) => {
   it('rejeita gravação com versão defasada sem sobrescrever', async () => {
     const { store } = await preparar()
 
-    await store.save({ notasPorDia: { '2026-10-09': 'primeira' } }, 0)
-    const conflito = await store.save({ notasPorDia: { '2026-10-09': 'segunda' } }, 0)
+    await store.save(dados({ '2026-10-09': 'primeira' }), 0)
+    const conflito = await store.save(dados({ '2026-10-09': 'segunda' }), 0)
 
     expect(conflito).toEqual({ ok: false, error: { kind: 'conflito-versao' } })
 
@@ -119,7 +127,21 @@ describe.each(cenarios)('contrato StateStore — $nome', ({ preparar }) => {
     if (!resultado.ok) expect(resultado.error.kind).toBe('schema-invalido')
   })
 
-  it('falha do armazenamento é erro explícito, não exceção', async () => {
+  it('migra estado gravado no schema v1 preservando o conteúdo', async () => {
+    const { store, corromper } = await preparar()
+    await store.save(estadoVazio(), 0)
+    await corromper({ notasPorDia: { '2026-10-09': 'legado' } }, 1)
+
+    const lido = await store.load()
+
+    expect(lido.ok).toBe(true)
+    if (lido.ok) {
+      expect(lido.value.dados.notasPorDia['2026-10-09']).toBe('legado')
+      expect(lido.value.dados.rotina).toEqual(rotinaVazia())
+    }
+  })
+
+  it('recupera de falha transitória de armazenamento', async () => {
     const { store, quebrar } = await preparar()
     await quebrar()
 
@@ -134,7 +156,7 @@ describe.each(cenarios)('contrato StateStore — $nome', ({ preparar }) => {
 
   it('não retorna hash de credencial nas leituras comuns', async () => {
     const { store } = await preparar()
-    await store.save({ notasPorDia: { '2026-10-09': 'nota' } }, 0)
+    await store.save(dados({ '2026-10-09': 'nota' }), 0)
 
     const lido = await store.load()
     const serializado = JSON.stringify(lido.ok ? lido.value : lido.error)

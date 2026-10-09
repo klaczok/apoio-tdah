@@ -1,27 +1,38 @@
 import { ehDataCivil } from '../tempo'
+import { rotinaVazia, validarRotina, type RotinaRecorrente } from '../rotina/modelo'
+import { SchemaInvalidoError } from './schema-error'
 
-export const SCHEMA_VERSION = 1
+export { SchemaInvalidoError }
+
+export const SCHEMA_VERSION = 2
 
 export type EstadoPrivado = {
   notasPorDia: Record<string, string>
-}
-
-export class SchemaInvalidoError extends Error {
-  constructor(detalhe: string) {
-    super(`schema inválido: ${detalhe}`)
-    this.name = 'SchemaInvalidoError'
-  }
+  rotina: RotinaRecorrente
 }
 
 export function estadoVazio(): EstadoPrivado {
-  return { notasPorDia: {} }
+  return { notasPorDia: {}, rotina: rotinaVazia() }
 }
 
-export function validarEstadoPrivado(raw: unknown): EstadoPrivado {
+function migrarDeV1(raw: unknown): unknown {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    throw new SchemaInvalidoError('estado v1 não é um objeto')
+  }
+  return { ...(raw as Record<string, unknown>), rotina: rotinaVazia() }
+}
+
+export function validarEstadoPrivado(raw: unknown, schemaVersion: number): EstadoPrivado {
+  if (schemaVersion > SCHEMA_VERSION) {
+    throw new SchemaInvalidoError(`versão de schema não suportada: ${schemaVersion}`)
+  }
+  let dados = raw
+  if (schemaVersion === 1) dados = migrarDeV1(dados)
+
+  if (typeof dados !== 'object' || dados === null || Array.isArray(dados)) {
     throw new SchemaInvalidoError('estado não é um objeto')
   }
-  const notas = (raw as Record<string, unknown>).notasPorDia
+  const { notasPorDia: notas, rotina } = dados as Record<string, unknown>
   if (typeof notas !== 'object' || notas === null || Array.isArray(notas)) {
     throw new SchemaInvalidoError('notasPorDia não é um mapa')
   }
@@ -33,5 +44,8 @@ export function validarEstadoPrivado(raw: unknown): EstadoPrivado {
       throw new SchemaInvalidoError(`nota de ${data} não é texto`)
     }
   }
-  return { notasPorDia: notas as Record<string, string> }
+  return {
+    notasPorDia: notas as Record<string, string>,
+    rotina: validarRotina(rotina),
+  }
 }

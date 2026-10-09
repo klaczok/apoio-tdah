@@ -1,10 +1,7 @@
+import { redirecionar } from '@/server/http'
 import { getStateStore } from '@/server/persistence'
 import { erroParaParam } from '@/server/persistence/mensagens'
 import { registrarNotaDoDia } from '@/server/usecases/nota-do-dia'
-
-function redirecionar(caminho: string): Response {
-  return new Response(null, { status: 303, headers: { location: caminho } })
-}
 
 export async function POST(request: Request) {
   const form = await request.formData().catch(() => null)
