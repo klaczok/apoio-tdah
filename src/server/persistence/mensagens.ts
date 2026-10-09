@@ -12,6 +12,8 @@ export function erroParaParam(error: PersistenceError): string {
       return 'confirmacao'
     case 'item-ausente':
       return 'ausente'
+    case 'prioridade-cheia':
+      return 'prioridade-cheia'
     case 'armazenamento-indisponivel':
       return 'persistencia'
   }
@@ -24,4 +26,5 @@ export const MENSAGENS_ERRO: Record<string, string> = {
   entrada: 'Algum campo está em formato inválido. Revise e tente novamente.',
   confirmacao: 'Este item é protegido. Marque a confirmação para alterá-lo.',
   ausente: 'Este item já não existe. Recarregue para ver a versão atual.',
+  'prioridade-cheia': 'Já são três prioridades. Escolha qual substituir.',
 }

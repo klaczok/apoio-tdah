@@ -42,6 +42,7 @@ export function gerarInstanciaDiaria(
     versaoBase,
     geradaEm: agora.toISOString(),
     confirmadaEm: null,
+    prioridades: [],
     itens: dia.sugestoes.map((s) => ({
       id: s.id,
       titulo: s.titulo,

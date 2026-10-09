@@ -3,7 +3,13 @@ import { getStateStore } from '@/server/persistence'
 import { erroParaParam } from '@/server/persistence/mensagens'
 import { SchemaInvalidoError } from '@/server/persistence/schema-error'
 import { gerarInstanciaDiaria } from '@/server/dia/gerar'
-import { ajustarItem, confirmarDia } from '@/server/dia/modelo'
+import {
+  ajustarItem,
+  confirmarDia,
+  promoverPrioridade,
+  removerPrioridade,
+  substituirPrioridade,
+} from '@/server/dia/modelo'
 import { ItemNaoEncontradoError } from '@/server/rotina/modelo'
 import { dataCivilAmanha, ehDataCivil } from '@/server/tempo'
 import { atualizarDia, type DiaAtual, type DiaNovo } from '@/server/usecases/dia'
@@ -63,6 +69,41 @@ function aplicador(
         },
       }
     }
+    case 'promover': {
+      const data = String(form.get('data') ?? '')
+      if (!ehDataCivil(data)) throw new SchemaInvalidoError('data inválida')
+      return {
+        data,
+        aplicar: ({ instancia }) => {
+          if (!instancia) throw new ItemNaoEncontradoError('dia não planejado')
+          return { instancia: promoverPrioridade(instancia, id) }
+        },
+      }
+    }
+    case 'despromover': {
+      const data = String(form.get('data') ?? '')
+      if (!ehDataCivil(data)) throw new SchemaInvalidoError('data inválida')
+      return {
+        data,
+        aplicar: ({ instancia }) => {
+          if (!instancia) throw new ItemNaoEncontradoError('dia não planejado')
+          return { instancia: removerPrioridade(instancia, id) }
+        },
+      }
+    }
+    case 'substituir': {
+      const data = String(form.get('data') ?? '')
+      const novo = String(form.get('novo') ?? '')
+      const antigo = String(form.get('antigo') ?? '')
+      if (!ehDataCivil(data)) throw new SchemaInvalidoError('data inválida')
+      return {
+        data,
+        aplicar: ({ instancia }) => {
+          if (!instancia) throw new ItemNaoEncontradoError('dia não planejado')
+          return { instancia: substituirPrioridade(instancia, antigo, novo) }
+        },
+      }
+    }
     default:
       throw new SchemaInvalidoError('ação desconhecida')
   }
@@ -84,6 +125,11 @@ export async function POST(request: Request) {
   const resultado = await atualizarDia(store, plano.data, plano.aplicar)
 
   if (!resultado.ok) {
+    // Limite de prioridades não é erro: o dia volta com a escolha de
+    // qual prioridade substituir pelo item candidato.
+    if (resultado.error.kind === 'prioridade-cheia' && acao === 'promover') {
+      return redirecionar(`/amanha?substituir=${encodeURIComponent(String(form.get('id') ?? ''))}`)
+    }
     return redirecionar(`/amanha?erro=${erroParaParam(resultado.error)}`)
   }
   if (acao === 'planejar') return redirecionar('/amanha?planejado=1')

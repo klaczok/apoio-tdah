@@ -7,6 +7,7 @@ export type PersistenceError =
   | { kind: 'entrada-invalida'; detalhe: string }
   | { kind: 'confirmacao-necessaria'; detalhe: string }
   | { kind: 'item-ausente'; detalhe: string }
+  | { kind: 'prioridade-cheia'; detalhe: string }
 
 export type PersistenceResult<T> = { ok: true; value: T } | { ok: false; error: PersistenceError }
 
