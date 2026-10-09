@@ -30,8 +30,8 @@ if (!email) {
 }
 
 const senha = await perguntarSenha()
-if (senha.length < 12) {
-  console.error('Senha muito curta: use pelo menos 12 caracteres.')
+if (senha.length < 6) {
+  console.error('Senha muito curta: use pelo menos 6 caracteres.')
   process.exit(1)
 }
 
