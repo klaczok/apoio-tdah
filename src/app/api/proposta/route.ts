@@ -49,11 +49,7 @@ function aplicador(acao: string, form: FormData): (atual: PropostaAtual) => Prop
       })
     case 'remover':
       return (atual) => ({
-        propostaSemanal: removerSugestao(
-          exigirRascunho(atual),
-          id,
-          form.get('confirmar') === 'on'
-        ),
+        propostaSemanal: removerSugestao(exigirRascunho(atual), id, form.get('confirmar') === 'on'),
       })
     case 'confirmar':
       return (atual) => ({

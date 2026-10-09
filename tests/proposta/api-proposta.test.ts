@@ -115,15 +115,15 @@ describe('POST /api/proposta', () => {
   it('remover item fixo sem confirmação devolve pedido de confirmação', async () => {
     await comRotinaConfigurada()
     await requisicao({ acao: 'gerar' })
-    const terapia = (await estadoAtual()).propostaSemanal!.dias
-      .flatMap((d) => d.sugestoes)
+    const terapia = (await estadoAtual())
+      .propostaSemanal!.dias.flatMap((d) => d.sugestoes)
       .find((s) => s.titulo === 'Terapia')!
 
     const resposta = await requisicao({ acao: 'remover', id: terapia.id })
 
     expect(resposta.headers.get('location')).toBe('/proposta?erro=confirmacao')
-    const permanece = (await estadoAtual()).propostaSemanal!.dias
-      .flatMap((d) => d.sugestoes)
+    const permanece = (await estadoAtual())
+      .propostaSemanal!.dias.flatMap((d) => d.sugestoes)
       .some((s) => s.id === terapia.id)
     expect(permanece).toBe(true)
   })

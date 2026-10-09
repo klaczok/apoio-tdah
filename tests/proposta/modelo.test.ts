@@ -95,9 +95,7 @@ describe('proposta semanal — rascunho', () => {
 
   it('editar ou remover item fixo exige confirmação explícita', () => {
     const proposta = propostaBase()
-    const terapia = proposta.dias
-      .flatMap((d) => d.sugestoes)
-      .find((s) => s.titulo === 'Terapia')!
+    const terapia = proposta.dias.flatMap((d) => d.sugestoes).find((s) => s.titulo === 'Terapia')!
 
     expect(() => removerSugestao(proposta, terapia.id)).toThrow(ConfirmacaoFixoError)
     expect(() => editarSugestao(proposta, terapia.id, { inicio: '19:00' })).toThrow(
