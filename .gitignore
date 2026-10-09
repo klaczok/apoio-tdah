@@ -5,6 +5,7 @@ out/
 dist/
 build/
 coverage/
+*.tsbuildinfo
 .vercel/
 
 # Environment variables and secrets
