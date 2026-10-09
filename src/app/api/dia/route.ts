@@ -8,17 +8,21 @@ import {
   adicionarTarefa,
   ajustarItem,
   anotarDia,
+  concluirRevisao,
   confirmarDia,
   dividirTarefa,
   editarTarefa,
+  ehEnergiaRevisao,
+  ehEstadoRevisao,
+  ehSobrecargaRevisao,
   promoverPrioridade,
+  registrarEstado,
   removerPrioridade,
   removerTarefa,
   substituirPrioridade,
 } from '@/server/dia/modelo'
-import { ehCategoria } from '@/server/rotina/modelo'
-import { ItemNaoEncontradoError } from '@/server/rotina/modelo'
-import { dataCivilAmanha, ehDataCivil } from '@/server/tempo'
+import { ehCategoria, ItemNaoEncontradoError } from '@/server/rotina/modelo'
+import { dataCivilAmanha, dataCivilHoje, ehDataCivil } from '@/server/tempo'
 import { atualizarDia, type DiaAtual, type DiaNovo } from '@/server/usecases/dia'
 
 function textoOuNulo(form: FormData, campo: string): string | null {
@@ -186,6 +190,59 @@ function aplicador(
         },
       }
     }
+    case 'revisar-item': {
+      const data = String(form.get('data') ?? '')
+      // Revisão olha o que aconteceu — dias futuros não são revisáveis.
+      if (!ehDataCivil(data) || data > dataCivilHoje()) {
+        throw new SchemaInvalidoError('data inválida')
+      }
+      const estado = String(form.get('estado') ?? '')
+      if (estado !== '' && !ehEstadoRevisao(estado)) {
+        throw new SchemaInvalidoError('estado de revisão inválido')
+      }
+      return {
+        data,
+        aplicar: ({ instancia }) => {
+          if (!instancia) throw new ItemNaoEncontradoError('dia não planejado')
+          return { instancia: registrarEstado(instancia, id, estado === '' ? null : estado) }
+        },
+      }
+    }
+    case 'revisar-concluir': {
+      const data = String(form.get('data') ?? '')
+      if (!ehDataCivil(data) || data > dataCivilHoje()) {
+        throw new SchemaInvalidoError('data inválida')
+      }
+      const energia = textoOuNulo(form, 'energia')
+      const sobrecarga = textoOuNulo(form, 'sobrecarga')
+      if (energia !== null && !ehEnergiaRevisao(energia)) {
+        throw new SchemaInvalidoError('escala inválida')
+      }
+      if (sobrecarga !== null && !ehSobrecargaRevisao(sobrecarga)) {
+        throw new SchemaInvalidoError('escala inválida')
+      }
+      // Aliases capturam o tipo já refinado pelos guards acima.
+      const energiaSel = energia
+      const sobrecargaSel = sobrecarga
+      return {
+        data,
+        aplicar: ({ instancia }) => {
+          if (!instancia) throw new ItemNaoEncontradoError('dia não planejado')
+          return {
+            instancia: concluirRevisao(
+              instancia,
+              {
+                energia: energiaSel,
+                sobrecarga: sobrecargaSel,
+                motivo: textoOuNulo(form, 'motivo'),
+                nota: textoOuNulo(form, 'nota'),
+              },
+              new Date()
+            ),
+          }
+        },
+      }
+    }
     case 'nota-dia': {
       const data = String(form.get('data') ?? '')
       if (!ehDataCivil(data)) throw new SchemaInvalidoError('data inválida')
@@ -207,11 +264,13 @@ export async function POST(request: Request) {
   if (!form) return redirecionar('/amanha')
 
   const acao = String(form.get('acao') ?? '')
+  const revisao = acao.startsWith('revisar-')
+  const destino = revisao ? '/hoje' : '/amanha'
   let plano: ReturnType<typeof aplicador>
   try {
     plano = aplicador(acao, form)
   } catch {
-    return redirecionar('/amanha?erro=entrada')
+    return redirecionar(`${destino}?erro=entrada`)
   }
 
   const store = await getStateStore()
@@ -223,9 +282,11 @@ export async function POST(request: Request) {
     if (resultado.error.kind === 'prioridade-cheia' && acao === 'promover') {
       return redirecionar(`/amanha?substituir=${encodeURIComponent(String(form.get('id') ?? ''))}`)
     }
-    return redirecionar(`/amanha?erro=${erroParaParam(resultado.error)}`)
+    return redirecionar(`${destino}?erro=${erroParaParam(resultado.error)}`)
   }
   if (acao === 'planejar') return redirecionar('/amanha?planejado=1')
   if (acao === 'confirmar') return redirecionar('/amanha?confirmado=1')
-  return redirecionar('/amanha?salvo=1')
+  if (acao === 'revisar-concluir') return redirecionar('/hoje?revisado=1')
+  if (acao === 'revisar-item') return redirecionar('/hoje?estado=1')
+  return redirecionar(`${destino}?salvo=1`)
 }

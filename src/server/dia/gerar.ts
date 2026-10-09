@@ -1,7 +1,7 @@
 import { ItemNaoEncontradoError, type RotinaRecorrente } from '../rotina/modelo'
 import type { PropostaSemanal } from '../proposta/modelo'
 import { diaSemanaDe, horaParaMinutos, minutosParaHora } from '../tempo'
-import type { InstanciaDiaria } from './modelo'
+import { revisaoVazia, type InstanciaDiaria } from './modelo'
 
 // A instância diária copia as sugestões do dia da semana correspondente na
 // proposta confirmada. É uma cópia independente: mover ou redimensionar aqui
@@ -45,6 +45,7 @@ export function gerarInstanciaDiaria(
     prioridades: [],
     tarefas: [],
     notaDia: null,
+    revisao: revisaoVazia(),
     itens: dia.sugestoes.map((s) => ({
       id: s.id,
       titulo: s.titulo,
