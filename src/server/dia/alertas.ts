@@ -33,12 +33,42 @@ function minutosParaTexto(min: number): string {
   return `${min}min`
 }
 
-type ItemComHorario = ItemDia & { inicio: string; fim: string }
+// Itens do plano e tarefas agendadas disputam os mesmos horários — os
+// cálculos tratam os dois por uma forma comum normalizada.
+type ItemComHorario = {
+  titulo: string
+  categoria: ItemDia['categoria']
+  inicio: string
+  fim: string
+  origem: string
+}
 
 function comHorario(instancia: InstanciaDiaria): ItemComHorario[] {
-  return instancia.itens
-    .filter((i): i is ItemComHorario => i.inicio !== null && i.fim !== null)
-    .sort((a, b) => horaParaMinutos(a.inicio) - horaParaMinutos(b.inicio))
+  const itens = instancia.itens
+    .filter(
+      (i): i is ItemDia & { inicio: string; fim: string } => i.inicio !== null && i.fim !== null
+    )
+    .map((i) => ({
+      titulo: i.titulo,
+      categoria: i.categoria,
+      inicio: i.inicio,
+      fim: i.fim,
+      origem: i.origem,
+    }))
+  const tarefas = instancia.tarefas
+    .filter(
+      (t): t is typeof t & { inicio: string; fim: string } => t.inicio !== null && t.fim !== null
+    )
+    .map((t) => ({
+      titulo: t.titulo,
+      categoria: t.categoria,
+      inicio: t.inicio,
+      fim: t.fim,
+      origem: 'tarefa',
+    }))
+  return [...itens, ...tarefas].sort(
+    (a, b) => horaParaMinutos(a.inicio) - horaParaMinutos(b.inicio)
+  )
 }
 
 function alertasSobreposicao(itens: ItemComHorario[]): Alerta[] {

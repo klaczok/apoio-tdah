@@ -300,4 +300,71 @@ describe('Amanhã', () => {
 
     expect(screen.queryByLabelText(/ciente dos alertas/i)).not.toBeInTheDocument()
   })
+
+  it('lista tarefas na seção própria com ações e nota do dia', async () => {
+    const instancia = await comDiaPlanejado()
+    const comTarefa = {
+      ...instancia,
+      tarefas: [
+        {
+          id: 't1',
+          titulo: 'Ligar para o dentista',
+          categoria: 'saude' as const,
+          inicio: null,
+          fim: null,
+          nota: 'Confirmar consulta',
+          origemId: null,
+          criadaEm: '2026-10-12T12:00:00.000Z',
+        },
+      ],
+      notaDia: 'Dia puxado',
+    }
+    const store = await getStateStore()
+    const carregado = await store.load()
+    if (!carregado.ok) throw new Error('store indisponível')
+    await store.save(
+      { ...carregado.value.dados, dias: { [instancia.data]: comTarefa } },
+      carregado.value.version
+    )
+
+    await renderizar()
+
+    const secao = screen.getByRole('region', { name: /tarefas do dia/i })
+    expect(secao).toHaveTextContent('Ligar para o dentista')
+    expect(secao).toHaveTextContent('Sem horário')
+    expect(secao).toHaveTextContent(/prioridade/i)
+    expect(screen.getByRole('region', { name: /nota do dia/i })).toHaveTextContent('Dia puxado')
+  })
+
+  it('tarefa agendada entra na linha do tempo como tarefa', async () => {
+    const instancia = await comDiaPlanejado()
+    const comTarefa = {
+      ...instancia,
+      tarefas: [
+        {
+          id: 't1',
+          titulo: 'Buscar encomenda',
+          categoria: 'pessoal' as const,
+          inicio: '16:00',
+          fim: '16:30',
+          nota: null,
+          origemId: null,
+          criadaEm: '2026-10-12T12:00:00.000Z',
+        },
+      ],
+    }
+    const store = await getStateStore()
+    const carregado = await store.load()
+    if (!carregado.ok) throw new Error('store indisponível')
+    await store.save(
+      { ...carregado.value.dados, dias: { [instancia.data]: comTarefa } },
+      carregado.value.version
+    )
+
+    await renderizar()
+
+    const timeline = screen.getByRole('list', { name: /linha do tempo/i })
+    expect(timeline).toHaveTextContent('Buscar encomenda')
+    expect(timeline).toHaveTextContent(/16:00–16:30/)
+  })
 })

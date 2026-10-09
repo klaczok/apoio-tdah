@@ -5,12 +5,18 @@ import { SchemaInvalidoError } from '@/server/persistence/schema-error'
 import { AlertasPendentesError, avaliarAlertas } from '@/server/dia/alertas'
 import { gerarInstanciaDiaria } from '@/server/dia/gerar'
 import {
+  adicionarTarefa,
   ajustarItem,
+  anotarDia,
   confirmarDia,
+  dividirTarefa,
+  editarTarefa,
   promoverPrioridade,
   removerPrioridade,
+  removerTarefa,
   substituirPrioridade,
 } from '@/server/dia/modelo'
+import { ehCategoria } from '@/server/rotina/modelo'
 import { ItemNaoEncontradoError } from '@/server/rotina/modelo'
 import { dataCivilAmanha, ehDataCivil } from '@/server/tempo'
 import { atualizarDia, type DiaAtual, type DiaNovo } from '@/server/usecases/dia'
@@ -107,6 +113,87 @@ function aplicador(
         aplicar: ({ instancia }) => {
           if (!instancia) throw new ItemNaoEncontradoError('dia não planejado')
           return { instancia: substituirPrioridade(instancia, antigo, novo) }
+        },
+      }
+    }
+    case 'tarefa-criar': {
+      const data = String(form.get('data') ?? '')
+      if (!ehDataCivil(data)) throw new SchemaInvalidoError('data inválida')
+      const titulo = String(form.get('titulo') ?? '').trim()
+      const categoria = String(form.get('categoria') ?? '')
+      if (!titulo || !ehCategoria(categoria)) {
+        throw new SchemaInvalidoError('tarefa inválida')
+      }
+      return {
+        data,
+        aplicar: ({ instancia }) => {
+          if (!instancia) throw new ItemNaoEncontradoError('dia não planejado')
+          return {
+            instancia: adicionarTarefa(instancia, {
+              titulo,
+              categoria,
+              inicio: textoOuNulo(form, 'inicio'),
+              fim: textoOuNulo(form, 'fim'),
+              nota: textoOuNulo(form, 'nota'),
+            }),
+          }
+        },
+      }
+    }
+    case 'tarefa-editar': {
+      const data = String(form.get('data') ?? '')
+      if (!ehDataCivil(data)) throw new SchemaInvalidoError('data inválida')
+      const categoria = String(form.get('categoria') ?? '')
+      return {
+        data,
+        aplicar: ({ instancia }) => {
+          if (!instancia) throw new ItemNaoEncontradoError('dia não planejado')
+          return {
+            instancia: editarTarefa(instancia, id, {
+              titulo: form.has('titulo') ? String(form.get('titulo') ?? '').trim() : undefined,
+              categoria: ehCategoria(categoria) ? categoria : undefined,
+              inicio: form.has('inicio') ? textoOuNulo(form, 'inicio') : undefined,
+              fim: form.has('fim') ? textoOuNulo(form, 'fim') : undefined,
+              nota: form.has('nota') ? textoOuNulo(form, 'nota') : undefined,
+            }),
+          }
+        },
+      }
+    }
+    case 'tarefa-remover': {
+      const data = String(form.get('data') ?? '')
+      if (!ehDataCivil(data)) throw new SchemaInvalidoError('data inválida')
+      return {
+        data,
+        aplicar: ({ instancia }) => {
+          if (!instancia) throw new ItemNaoEncontradoError('dia não planejado')
+          return { instancia: removerTarefa(instancia, id, confirmar) }
+        },
+      }
+    }
+    case 'tarefa-dividir': {
+      const data = String(form.get('data') ?? '')
+      if (!ehDataCivil(data)) throw new SchemaInvalidoError('data inválida')
+      const partes = String(form.get('partes') ?? '')
+        .split('\n')
+        .map((p) => p.trim())
+        .filter((p) => p.length > 0)
+      return {
+        data,
+        aplicar: ({ instancia }) => {
+          if (!instancia) throw new ItemNaoEncontradoError('dia não planejado')
+          return { instancia: dividirTarefa(instancia, id, partes) }
+        },
+      }
+    }
+    case 'nota-dia': {
+      const data = String(form.get('data') ?? '')
+      if (!ehDataCivil(data)) throw new SchemaInvalidoError('data inválida')
+      return {
+        data,
+        aplicar: ({ instancia }) => {
+          if (!instancia) throw new ItemNaoEncontradoError('dia não planejado')
+          return { instancia: anotarDia(instancia, String(form.get('nota') ?? '')) }
         },
       }
     }

@@ -288,4 +288,69 @@ describe('POST /api/dia', () => {
     expect(confirmado.headers.get('location')).toBe('/amanha?confirmado=1')
     expect((await estadoAtual()).dados.dias[amanha].confirmadaEm).not.toBeNull()
   })
+
+  it('cria, agenda e remove tarefa com confirmação', async () => {
+    await comSemanaConfirmada()
+    await requisicao({ acao: 'planejar' })
+    const amanha = dataCivilAmanha()
+
+    await requisicao({
+      acao: 'tarefa-criar',
+      data: amanha,
+      titulo: 'Ligar para o banco',
+      categoria: 'pessoal',
+    })
+    let instancia = (await estadoAtual()).dados.dias[amanha]
+    const tarefa = instancia.tarefas.find((t) => t.titulo === 'Ligar para o banco')!
+    expect(tarefa.inicio).toBeNull()
+
+    await requisicao({
+      acao: 'tarefa-editar',
+      data: amanha,
+      id: tarefa.id,
+      inicio: '16:00',
+      fim: '16:30',
+    })
+    instancia = (await estadoAtual()).dados.dias[amanha]
+    expect(instancia.tarefas[0].inicio).toBe('16:00')
+
+    const semConfirmar = await requisicao({ acao: 'tarefa-remover', data: amanha, id: tarefa.id })
+    expect(semConfirmar.headers.get('location')).toMatch(/erro=confirmacao/)
+    expect((await estadoAtual()).dados.dias[amanha].tarefas).toHaveLength(1)
+
+    await requisicao({
+      acao: 'tarefa-remover',
+      data: amanha,
+      id: tarefa.id,
+      confirmar: 'on',
+    })
+    expect((await estadoAtual()).dados.dias[amanha].tarefas).toHaveLength(0)
+  })
+
+  it('divide tarefa em partes rastreáveis e registra nota do dia', async () => {
+    await comSemanaConfirmada()
+    await requisicao({ acao: 'planejar' })
+    const amanha = dataCivilAmanha()
+    await requisicao({
+      acao: 'tarefa-criar',
+      data: amanha,
+      titulo: 'Arrumar quarto',
+      categoria: 'pessoal',
+    })
+    const instancia = (await estadoAtual()).dados.dias[amanha]
+    const tarefa = instancia.tarefas[0]
+
+    await requisicao({
+      acao: 'tarefa-dividir',
+      data: amanha,
+      id: tarefa.id,
+      partes: 'Roupas\nLivros',
+    })
+    await requisicao({ acao: 'nota-dia', data: amanha, nota: 'Dia cheio' })
+
+    const atual = (await estadoAtual()).dados.dias[amanha]
+    expect(atual.tarefas).toHaveLength(3)
+    expect(atual.tarefas.filter((t) => t.origemId === tarefa.id)).toHaveLength(2)
+    expect(atual.notaDia).toBe('Dia cheio')
+  })
 })

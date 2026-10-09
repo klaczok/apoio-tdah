@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import { SchemaInvalidoError } from '../persistence/schema-error'
 import { ehDataCivil, horaParaMinutos, minutosParaHora } from '../tempo'
 import type { OrigemSugestao, ProtecaoSugestao } from '../proposta/modelo'
@@ -25,6 +26,21 @@ export type ItemDia = {
   explicacao: string
 }
 
+// Tarefa é um item livre do dia: criada, editada, agendada, dividida e
+// removida pelo usuário. `origemId` liga uma parte à tarefa dividida que a
+// gerou; remover uma tarefa a apaga por completo (correção de cadastro) —
+// descarte com significado histórico é assunto da revisão do dia.
+export type Tarefa = {
+  id: string
+  titulo: string
+  categoria: Categoria
+  inicio: string | null
+  fim: string | null
+  nota: string | null
+  origemId: string | null
+  criadaEm: string
+}
+
 export type InstanciaDiaria = {
   data: string
   diaSemana: DiaSemana
@@ -40,6 +56,8 @@ export type InstanciaDiaria = {
   // Ids de itens promovidos a prioridade do dia — no máximo três, persistidos
   // por instância (prioridades pertencem ao dia, não à rotina).
   prioridades: string[]
+  tarefas: Tarefa[]
+  notaDia: string | null
 }
 
 export const LIMITE_PRIORIDADES = 3
@@ -108,6 +126,8 @@ export function validarInstancia(raw: unknown): InstanciaDiaria {
     confirmadaEm,
     itens,
     prioridades,
+    tarefas,
+    notaDia,
   } = raw
   if (typeof data !== 'string' || !ehDataCivil(data)) {
     throw new SchemaInvalidoError('data da instância inválida')
@@ -128,7 +148,8 @@ export function validarInstancia(raw: unknown): InstanciaDiaria {
     throw new SchemaInvalidoError('itens do dia não é uma lista')
   }
   const itensValidados = itens.map(validarItemDia)
-  const ids = new Set(itensValidados.map((i) => i.id))
+  const tarefasValidadas = validarTarefas(tarefas ?? [])
+  const ids = new Set([...itensValidados.map((i) => i.id), ...tarefasValidadas.map((t) => t.id)])
   const pris = validarPrioridades(prioridades ?? [], ids)
   return {
     data,
@@ -141,7 +162,73 @@ export function validarInstancia(raw: unknown): InstanciaDiaria {
     confirmadaEm: confirmadaEm ?? null,
     itens: itensValidados,
     prioridades: pris,
+    tarefas: tarefasValidadas,
+    notaDia: validarNotaDia(notaDia ?? null),
   }
+}
+
+function validarTarefa(raw: unknown): Tarefa {
+  if (!ehObjeto(raw)) {
+    throw new SchemaInvalidoError('tarefa não é um objeto')
+  }
+  const { id, titulo, categoria, inicio, fim, nota, origemId, criadaEm } = raw
+  if (typeof id !== 'string' || !id) throw new SchemaInvalidoError('tarefa sem id')
+  if (typeof titulo !== 'string' || !titulo.trim()) {
+    throw new SchemaInvalidoError('tarefa sem título')
+  }
+  if (typeof categoria !== 'string' || !ehCategoria(categoria)) {
+    throw new SchemaInvalidoError('categoria inválida')
+  }
+  const ini = horaEditavel(inicio, 'inicio')
+  const fm = horaEditavel(fim, 'fim')
+  // Tarefa admite início sem fim (duração opcional); nunca fim sem início.
+  if (ini === null && fm !== null) {
+    throw new SchemaInvalidoError('tarefa com fim sem início')
+  }
+  if (ini !== null && fm !== null && ini >= fm) {
+    throw new SchemaInvalidoError('tarefa com início após o fim')
+  }
+  if (nota !== null && nota !== undefined && typeof nota !== 'string') {
+    throw new SchemaInvalidoError('nota de tarefa inválida')
+  }
+  if (origemId !== null && origemId !== undefined && typeof origemId !== 'string') {
+    throw new SchemaInvalidoError('origem de tarefa inválida')
+  }
+  if (typeof criadaEm !== 'string' || !criadaEm) {
+    throw new SchemaInvalidoError('tarefa sem data de criação')
+  }
+  return {
+    id,
+    titulo: titulo.trim(),
+    categoria,
+    inicio: ini,
+    fim: fm,
+    nota: nota ?? null,
+    origemId: origemId ?? null,
+    criadaEm,
+  }
+}
+
+function validarTarefas(raw: unknown): Tarefa[] {
+  if (!Array.isArray(raw)) {
+    throw new SchemaInvalidoError('tarefas não é uma lista')
+  }
+  const tarefas = raw.map(validarTarefa)
+  const ids = new Set(tarefas.map((t) => t.id))
+  for (const t of tarefas) {
+    if (t.origemId !== null && !ids.has(t.origemId)) {
+      throw new SchemaInvalidoError('parte de tarefa sem origem no dia')
+    }
+  }
+  return tarefas
+}
+
+function validarNotaDia(raw: unknown): string | null {
+  if (raw === null) return null
+  if (typeof raw !== 'string') {
+    throw new SchemaInvalidoError('nota do dia inválida')
+  }
+  return raw.trim() || null
 }
 
 function validarPrioridades(raw: unknown, idsItens: Set<string>): string[] {
@@ -215,7 +302,9 @@ export function confirmarDia(instancia: InstanciaDiaria, agora: Date): Instancia
 }
 
 function exigirItem(instancia: InstanciaDiaria, id: string): void {
-  if (!instancia.itens.some((i) => i.id === id)) {
+  const existe =
+    instancia.itens.some((i) => i.id === id) || instancia.tarefas.some((t) => t.id === id)
+  if (!existe) {
     throw new ItemNaoEncontradoError('item não encontrado')
   }
 }
@@ -254,4 +343,108 @@ export function substituirPrioridade(
   const prioridades = instancia.prioridades.slice()
   prioridades[posicao] = novoId
   return { ...instancia, prioridades }
+}
+
+export type EntradaTarefa = {
+  titulo: string
+  categoria: Categoria
+  inicio?: string | null
+  fim?: string | null
+  nota?: string | null
+}
+
+export function adicionarTarefa(
+  instancia: InstanciaDiaria,
+  entrada: EntradaTarefa,
+  agora = new Date()
+): InstanciaDiaria {
+  exigirRascunho(instancia)
+  const tarefa = validarTarefa({
+    id: randomUUID(),
+    titulo: entrada.titulo,
+    categoria: entrada.categoria,
+    inicio: entrada.inicio ?? null,
+    fim: entrada.fim ?? null,
+    nota: entrada.nota ?? null,
+    origemId: null,
+    criadaEm: agora.toISOString(),
+  })
+  return { ...instancia, tarefas: [...instancia.tarefas, tarefa] }
+}
+
+// inicio/fim presentes na entrada substituem o horário (null desagenda);
+// campos omitidos preservam o valor atual.
+export function editarTarefa(
+  instancia: InstanciaDiaria,
+  id: string,
+  entrada: Partial<EntradaTarefa>
+): InstanciaDiaria {
+  exigirRascunho(instancia)
+  const alvo = instancia.tarefas.find((t) => t.id === id)
+  if (!alvo) throw new ItemNaoEncontradoError('tarefa não encontrada')
+  const atualizada = validarTarefa({
+    ...alvo,
+    titulo: entrada.titulo ?? alvo.titulo,
+    categoria: entrada.categoria ?? alvo.categoria,
+    inicio: entrada.inicio === undefined ? alvo.inicio : entrada.inicio,
+    fim: entrada.fim === undefined ? alvo.fim : entrada.fim,
+    nota: entrada.nota === undefined ? alvo.nota : entrada.nota,
+  })
+  return {
+    ...instancia,
+    tarefas: instancia.tarefas.map((t) => (t.id === id ? atualizada : t)),
+  }
+}
+
+// Remover é correção de cadastro por engano — apaga por completo e exige
+// confirmação explícita. Não grava nenhum estado "descartada".
+export function removerTarefa(
+  instancia: InstanciaDiaria,
+  id: string,
+  confirmar = false
+): InstanciaDiaria {
+  exigirRascunho(instancia)
+  if (!instancia.tarefas.some((t) => t.id === id)) {
+    throw new ItemNaoEncontradoError('tarefa não encontrada')
+  }
+  if (!confirmar) throw new ConfirmacaoFixoError()
+  // Partes geradas por divisão ficam órfãs — mantêm origemId como rastro.
+  return {
+    ...instancia,
+    tarefas: instancia.tarefas.filter((t) => t.id !== id),
+    prioridades: instancia.prioridades.filter((p) => p !== id),
+  }
+}
+
+// Dividir cria partes novas apontando para a origem; a tarefa original fica
+// intacta (não é marcada como realizada — estado é assunto da revisão).
+export function dividirTarefa(
+  instancia: InstanciaDiaria,
+  id: string,
+  titulosPartes: string[],
+  agora = new Date()
+): InstanciaDiaria {
+  exigirRascunho(instancia)
+  const alvo = instancia.tarefas.find((t) => t.id === id)
+  if (!alvo) throw new ItemNaoEncontradoError('tarefa não encontrada')
+  const titulos = titulosPartes.map((t) => t.trim()).filter((t) => t.length > 0)
+  if (titulos.length < 2) {
+    throw new SchemaInvalidoError('divisão precisa de pelo menos duas partes')
+  }
+  const partes: Tarefa[] = titulos.map((titulo) => ({
+    id: randomUUID(),
+    titulo,
+    categoria: alvo.categoria,
+    inicio: null,
+    fim: null,
+    nota: null,
+    origemId: alvo.id,
+    criadaEm: agora.toISOString(),
+  }))
+  return { ...instancia, tarefas: [...instancia.tarefas, ...partes] }
+}
+
+export function anotarDia(instancia: InstanciaDiaria, nota: string): InstanciaDiaria {
+  exigirRascunho(instancia)
+  return { ...instancia, notaDia: validarNotaDia(nota) }
 }
