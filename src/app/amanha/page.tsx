@@ -10,8 +10,8 @@ import {
   horaParaMinutos,
   minutosParaHora,
 } from '@/server/tempo'
-import { ROTULOS_CATEGORIA, ROTULOS_DIA, type Categoria } from '@/server/rotina/modelo'
-import type { InstanciaDiaria, ItemDia } from '@/server/dia/modelo'
+import { CATEGORIAS, ROTULOS_CATEGORIA, ROTULOS_DIA, type Categoria } from '@/server/rotina/modelo'
+import type { InstanciaDiaria, ItemDia, Tarefa } from '@/server/dia/modelo'
 import { avaliarAlertas, type Alerta } from '@/server/dia/alertas'
 
 export const dynamic = 'force-dynamic'
@@ -26,7 +26,7 @@ type Props = {
   }>
 }
 
-function horario(item: ItemDia): string {
+function horario(item: { inicio: string | null; fim: string | null }): string {
   return item.inicio && item.fim ? `${item.inicio}–${item.fim}` : 'a confirmar'
 }
 
@@ -109,11 +109,11 @@ function AcaoAjustar({ item, data }: { item: ItemDia; data: string }) {
 }
 
 function AcaoPrioridade({
-  item,
+  itemId,
   data,
   ehPrioridade,
 }: {
-  item: ItemDia
+  itemId: string
   data: string
   ehPrioridade: boolean
 }) {
@@ -121,7 +121,7 @@ function AcaoPrioridade({
     <form action="/api/dia" method="post" className={styles.formInline}>
       <input type="hidden" name="acao" value={ehPrioridade ? 'despromover' : 'promover'} />
       <input type="hidden" name="data" value={data} />
-      <input type="hidden" name="id" value={item.id} />
+      <input type="hidden" name="id" value={itemId} />
       <button className={styles.secundaria} type="submit">
         {ehPrioridade ? 'Remover prioridade' : 'Marcar como prioridade'}
       </button>
@@ -129,12 +129,16 @@ function AcaoPrioridade({
   )
 }
 
+function resolverItem(instancia: InstanciaDiaria, id: string): ItemDia | Tarefa | undefined {
+  return instancia.itens.find((i) => i.id === id) ?? instancia.tarefas.find((t) => t.id === id)
+}
+
 // Até três prioridades do dia — seção própria antes dos detalhes flexíveis.
 function PrioridadesDoDia({ instancia }: { instancia: InstanciaDiaria }) {
   if (instancia.prioridades.length === 0) return null
   const itens = instancia.prioridades
-    .map((id) => instancia.itens.find((i) => i.id === id))
-    .filter((i): i is ItemDia => i !== undefined)
+    .map((id) => resolverItem(instancia, id))
+    .filter((i): i is ItemDia | Tarefa => i !== undefined)
   return (
     <section className={styles.form} aria-label="Prioridades do dia">
       <h2 className={styles.subtitulo}>Prioridades do dia</h2>
@@ -160,11 +164,11 @@ function Substituicao({
   instancia: InstanciaDiaria
   candidatoId: string
 }) {
-  const candidato = instancia.itens.find((i) => i.id === candidatoId)
+  const candidato = resolverItem(instancia, candidatoId)
   if (!candidato || instancia.prioridades.length === 0) return null
   const atuais = instancia.prioridades
-    .map((id) => instancia.itens.find((i) => i.id === id))
-    .filter((i): i is ItemDia => i !== undefined)
+    .map((id) => resolverItem(instancia, id))
+    .filter((i): i is ItemDia | Tarefa => i !== undefined)
   return (
     <section className={styles.form} aria-label="Substituir prioridade">
       <h2 className={styles.subtitulo}>Substituir prioridade</h2>
@@ -240,9 +244,45 @@ function FixosDoDia({ instancia }: { instancia: InstanciaDiaria }) {
   )
 }
 
-function CargaPorArea({ itens }: { itens: ItemDia[] }) {
+// Forma normalizada da linha do tempo: itens do plano e tarefas agendadas
+// dividem a mesma sequência cronológica.
+type ItemLinha = {
+  id: string
+  titulo: string
+  categoria: Categoria
+  inicio: string | null
+  fim: string | null
+  protecao: 'fixo' | 'flexivel'
+  explicacao: string
+  plano: ItemDia | null
+}
+
+function paraItemLinha(item: ItemDia): ItemLinha {
+  return { ...item, plano: item }
+}
+
+function tarefaParaLinha(tarefa: Tarefa): ItemLinha {
+  return {
+    id: tarefa.id,
+    titulo: tarefa.titulo,
+    categoria: tarefa.categoria,
+    inicio: tarefa.inicio,
+    fim: tarefa.fim,
+    protecao: 'flexivel',
+    explicacao: tarefa.nota ?? 'Tarefa do dia.',
+    plano: null,
+  }
+}
+
+function horarioLinha(item: ItemLinha): string {
+  if (item.inicio && item.fim) return `${item.inicio}–${item.fim}`
+  if (item.inicio) return `${item.inicio} · duração a confirmar`
+  return 'a confirmar'
+}
+
+function CargaPorArea({ instancia }: { instancia: InstanciaDiaria }) {
   const porCategoria = new Map<Categoria, number>()
-  for (const item of itens) {
+  for (const item of [...instancia.itens, ...instancia.tarefas]) {
     if (item.inicio === null || item.fim === null) continue
     const minutos = horaParaMinutos(item.fim) - horaParaMinutos(item.inicio)
     porCategoria.set(item.categoria, (porCategoria.get(item.categoria) ?? 0) + minutos)
@@ -259,14 +299,16 @@ function CargaPorArea({ itens }: { itens: ItemDia[] }) {
 }
 
 function LinhaDoTempo({ instancia, editavel }: { instancia: InstanciaDiaria; editavel: boolean }) {
-  const comHorario = instancia.itens
+  const todos = [...instancia.itens.map(paraItemLinha), ...instancia.tarefas.map(tarefaParaLinha)]
+  const comHorario = todos
     .filter((i) => i.inicio !== null)
     .sort((a, b) => horaParaMinutos(a.inicio!) - horaParaMinutos(b.inicio!))
-  const semHorario = instancia.itens.filter((i) => i.inicio === null)
+  // Tarefas sem horário ficam na seção própria, não nesta lista.
+  const semHorario = todos.filter((i) => i.inicio === null && i.plano !== null)
   const livres = lacunasDoDia(instancia)
 
   type Evento =
-    | { tipo: 'item'; item: ItemDia }
+    | { tipo: 'item'; item: ItemLinha }
     | { tipo: 'livre'; inicio: number; fim: number }
     | { tipo: 'marco'; texto: string; minutos: number }
 
@@ -315,15 +357,21 @@ function LinhaDoTempo({ instancia, editavel }: { instancia: InstanciaDiaria; edi
           ) : (
             <li key={e.item.id} className={styles.item}>
               <span className={styles.itemTexto}>
-                {horario(e.item)} · {e.item.titulo} · {ROTULOS_CATEGORIA[e.item.categoria]} ·{' '}
-                {e.item.protecao === 'fixo' ? 'Fixo' : 'Flexível'}
+                {horarioLinha(e.item)} · {e.item.titulo} · {ROTULOS_CATEGORIA[e.item.categoria]} ·{' '}
+                {e.item.plano === null
+                  ? 'Tarefa'
+                  : e.item.protecao === 'fixo'
+                    ? 'Fixo'
+                    : 'Flexível'}
                 {instancia.prioridades.includes(e.item.id) && ' · Prioridade'}
               </span>
               <p className={styles.dica}>{e.item.explicacao}</p>
-              {editavel && <AcaoAjustar item={e.item} data={instancia.data} />}
+              {editavel && e.item.plano !== null && (
+                <AcaoAjustar item={e.item.plano} data={instancia.data} />
+              )}
               {editavel && (
                 <AcaoPrioridade
-                  item={e.item}
+                  itemId={e.item.id}
                   data={instancia.data}
                   ehPrioridade={instancia.prioridades.includes(e.item.id)}
                 />
@@ -342,10 +390,12 @@ function LinhaDoTempo({ instancia, editavel }: { instancia: InstanciaDiaria; edi
                   {item.titulo} · {ROTULOS_CATEGORIA[item.categoria]}
                 </span>
                 <p className={styles.dica}>{item.explicacao}</p>
-                {editavel && <AcaoAjustar item={item} data={instancia.data} />}
+                {editavel && item.plano !== null && (
+                  <AcaoAjustar item={item.plano} data={instancia.data} />
+                )}
                 {editavel && (
                   <AcaoPrioridade
-                    item={item}
+                    itemId={item.id}
                     data={instancia.data}
                     ehPrioridade={instancia.prioridades.includes(item.id)}
                   />
@@ -356,6 +406,182 @@ function LinhaDoTempo({ instancia, editavel }: { instancia: InstanciaDiaria; edi
         </section>
       )}
     </>
+  )
+}
+
+function FormTarefa({ instancia, tarefa }: { instancia: InstanciaDiaria; tarefa?: Tarefa }) {
+  return (
+    <form className={styles.form} action="/api/dia" method="post">
+      <input type="hidden" name="acao" value={tarefa ? 'tarefa-editar' : 'tarefa-criar'} />
+      <input type="hidden" name="data" value={instancia.data} />
+      {tarefa && <input type="hidden" name="id" value={tarefa.id} />}
+      <label className={styles.label} htmlFor={`tarefa-titulo-${tarefa?.id ?? 'nova'}`}>
+        Título
+      </label>
+      <input
+        className={styles.input}
+        id={`tarefa-titulo-${tarefa?.id ?? 'nova'}`}
+        name="titulo"
+        required
+        defaultValue={tarefa?.titulo}
+      />
+      <label className={styles.label} htmlFor={`tarefa-categoria-${tarefa?.id ?? 'nova'}`}>
+        Categoria
+      </label>
+      <select
+        className={styles.input}
+        id={`tarefa-categoria-${tarefa?.id ?? 'nova'}`}
+        name="categoria"
+        defaultValue={tarefa?.categoria ?? 'pessoal'}
+      >
+        {CATEGORIAS.map((c) => (
+          <option key={c} value={c}>
+            {ROTULOS_CATEGORIA[c]}
+          </option>
+        ))}
+      </select>
+      <label className={styles.label} htmlFor={`tarefa-inicio-${tarefa?.id ?? 'nova'}`}>
+        Início (opcional)
+      </label>
+      <input
+        className={styles.input}
+        id={`tarefa-inicio-${tarefa?.id ?? 'nova'}`}
+        name="inicio"
+        type="time"
+        defaultValue={tarefa?.inicio ?? ''}
+      />
+      <label className={styles.label} htmlFor={`tarefa-fim-${tarefa?.id ?? 'nova'}`}>
+        Fim (opcional)
+      </label>
+      <input
+        className={styles.input}
+        id={`tarefa-fim-${tarefa?.id ?? 'nova'}`}
+        name="fim"
+        type="time"
+        defaultValue={tarefa?.fim ?? ''}
+      />
+      <label className={styles.label} htmlFor={`tarefa-nota-${tarefa?.id ?? 'nova'}`}>
+        Nota (opcional)
+      </label>
+      <input
+        className={styles.input}
+        id={`tarefa-nota-${tarefa?.id ?? 'nova'}`}
+        name="nota"
+        defaultValue={tarefa?.nota ?? ''}
+      />
+      <button className={styles.acao} type="submit">
+        {tarefa ? 'Salvar tarefa' : 'Adicionar tarefa'}
+      </button>
+    </form>
+  )
+}
+
+// Tarefas vivem na seção própria — criar, editar, agendar, dividir em partes
+// rastreáveis, promover a prioridade e remover (com confirmação, sem estado
+// de descarte).
+function TarefasDoDia({ instancia, editavel }: { instancia: InstanciaDiaria; editavel: boolean }) {
+  return (
+    <section className={styles.form} aria-label="Tarefas do dia">
+      <h2 className={styles.subtitulo}>Tarefas do dia</h2>
+      {instancia.tarefas.length === 0 && (
+        <p className={styles.dica}>Nenhuma tarefa anotada para amanhã.</p>
+      )}
+      <ul className={styles.lista}>
+        {instancia.tarefas.map((t) => {
+          const origem = t.origemId ? resolverItem(instancia, t.origemId) : undefined
+          return (
+            <li key={t.id} className={styles.item}>
+              <span className={styles.itemTexto}>
+                {t.inicio ? `${t.inicio}${t.fim ? `–${t.fim}` : ''}` : 'Sem horário'} · {t.titulo} ·{' '}
+                {ROTULOS_CATEGORIA[t.categoria]}
+                {instancia.prioridades.includes(t.id) && ' · Prioridade'}
+                {origem && ` · parte de "${origem.titulo}"`}
+              </span>
+              {t.nota && <p className={styles.dica}>Nota: {t.nota}</p>}
+              {editavel && (
+                <>
+                  <AcaoPrioridade
+                    itemId={t.id}
+                    data={instancia.data}
+                    ehPrioridade={instancia.prioridades.includes(t.id)}
+                  />
+                  <details className={styles.edicao}>
+                    <summary className={styles.secundaria}>Editar</summary>
+                    <FormTarefa instancia={instancia} tarefa={t} />
+                  </details>
+                  <details className={styles.edicao}>
+                    <summary className={styles.secundaria}>Dividir em partes</summary>
+                    <form className={styles.form} action="/api/dia" method="post">
+                      <input type="hidden" name="acao" value="tarefa-dividir" />
+                      <input type="hidden" name="data" value={instancia.data} />
+                      <input type="hidden" name="id" value={t.id} />
+                      <label className={styles.label} htmlFor={`partes-${t.id}`}>
+                        Uma parte por linha
+                      </label>
+                      <textarea
+                        className={styles.input}
+                        id={`partes-${t.id}`}
+                        name="partes"
+                        rows={3}
+                      />
+                      <button className={styles.acao} type="submit">
+                        Dividir
+                      </button>
+                    </form>
+                  </details>
+                  <form className={styles.form} action="/api/dia" method="post">
+                    <input type="hidden" name="acao" value="tarefa-remover" />
+                    <input type="hidden" name="data" value={instancia.data} />
+                    <input type="hidden" name="id" value={t.id} />
+                    <label className={styles.opcao} htmlFor={`remover-${t.id}`}>
+                      <input id={`remover-${t.id}`} type="checkbox" name="confirmar" />
+                      Confirmo a remoção desta tarefa
+                    </label>
+                    <button className={styles.secundaria} type="submit">
+                      Remover
+                    </button>
+                  </form>
+                </>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+      {editavel && (
+        <details className={styles.edicao}>
+          <summary className={styles.secundaria}>Nova tarefa</summary>
+          <FormTarefa instancia={instancia} />
+        </details>
+      )}
+    </section>
+  )
+}
+
+function NotaDoDia({ instancia, editavel }: { instancia: InstanciaDiaria; editavel: boolean }) {
+  return (
+    <section className={styles.form} aria-label="Nota do dia">
+      <h2 className={styles.subtitulo}>Nota do dia</h2>
+      {instancia.notaDia && <p className={styles.itemTexto}>{instancia.notaDia}</p>}
+      {editavel && (
+        <form className={styles.form} action="/api/dia" method="post">
+          <input type="hidden" name="acao" value="nota-dia" />
+          <input type="hidden" name="data" value={instancia.data} />
+          <label className={styles.label} htmlFor="nota-dia">
+            Anotação opcional — nunca obrigatória para confirmar
+          </label>
+          <textarea
+            className={styles.input}
+            id="nota-dia"
+            name="nota"
+            rows={2}
+            defaultValue={instancia.notaDia ?? ''}
+          />
+          <button className={styles.secundaria} type="submit">
+            Salvar nota
+          </button>
+        </form>
+      )}
+    </section>
   )
 }
 
@@ -439,7 +665,9 @@ export default async function AmanhaPage({ searchParams }: Props) {
           )}
           <FixosDoDia instancia={instancia} />
           <LinhaDoTempo instancia={instancia} editavel={editavel} />
-          <CargaPorArea itens={instancia.itens} />
+          <TarefasDoDia instancia={instancia} editavel={editavel} />
+          <NotaDoDia instancia={instancia} editavel={editavel} />
+          <CargaPorArea instancia={instancia} />
           <AlertasDoDia alertas={alertas} />
           {editavel && (
             <form action="/api/dia" method="post" className={styles.form}>
