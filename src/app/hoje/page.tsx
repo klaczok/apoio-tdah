@@ -52,6 +52,8 @@ export default async function HojePage({ searchParams }: Props) {
         </button>
       </form>
 
+      <Link href="/amanha">Planejar amanhã</Link>
+
       <Link href="/proposta">Proposta da semana</Link>
 
       <Link href="/configurar">Configurar rotina</Link>

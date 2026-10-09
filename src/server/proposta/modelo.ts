@@ -57,7 +57,7 @@ function ehObjeto(valor: unknown): valor is Record<string, unknown> {
   return typeof valor === 'object' && valor !== null && !Array.isArray(valor)
 }
 
-function ehOrigem(valor: string): valor is OrigemSugestao {
+export function ehOrigem(valor: string): valor is OrigemSugestao {
   return (ORIGENS_SUGESTAO as readonly string[]).includes(valor)
 }
 
