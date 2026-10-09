@@ -2,6 +2,7 @@ import { redirecionar } from '@/server/http'
 import { getStateStore } from '@/server/persistence'
 import { erroParaParam } from '@/server/persistence/mensagens'
 import { SchemaInvalidoError } from '@/server/persistence/schema-error'
+import { AlertasPendentesError, avaliarAlertas } from '@/server/dia/alertas'
 import { gerarInstanciaDiaria } from '@/server/dia/gerar'
 import {
   ajustarItem,
@@ -60,11 +61,16 @@ function aplicador(
     }
     case 'confirmar': {
       const data = String(form.get('data') ?? '')
+      const ciente = form.get('ciente') === 'on'
       if (!ehDataCivil(data)) throw new SchemaInvalidoError('data inválida')
       return {
         data,
-        aplicar: ({ instancia }) => {
+        aplicar: ({ instancia, rotina }) => {
           if (!instancia) throw new ItemNaoEncontradoError('dia não planejado')
+          // Alertas comuns não bloqueiam: bastam o reconhecimento marcado.
+          if (!ciente && avaliarAlertas(instancia, rotina).length > 0) {
+            throw new AlertasPendentesError()
+          }
           return { instancia: confirmarDia(instancia, new Date()) }
         },
       }

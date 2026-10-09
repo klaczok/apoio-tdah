@@ -12,6 +12,7 @@ import {
 } from '@/server/tempo'
 import { ROTULOS_CATEGORIA, ROTULOS_DIA, type Categoria } from '@/server/rotina/modelo'
 import type { InstanciaDiaria, ItemDia } from '@/server/dia/modelo'
+import { avaliarAlertas, type Alerta } from '@/server/dia/alertas'
 
 export const dynamic = 'force-dynamic'
 
@@ -192,6 +193,24 @@ function Substituicao({
   )
 }
 
+// Alertas aparecem como dados do plano, antes da confirmação — são
+// informativos e distintos de erros de validação ou persistência.
+function AlertasDoDia({ alertas }: { alertas: Alerta[] }) {
+  if (alertas.length === 0) return null
+  return (
+    <section className={styles.form} aria-label="Alertas do dia">
+      <h2 className={styles.subtitulo}>Alertas do dia</h2>
+      <ul className={styles.lista}>
+        {alertas.map((a, i) => (
+          <li key={i} className={styles.item}>
+            <span className={styles.itemTexto}>{a.mensagem}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
 function FixosDoDia({ instancia }: { instancia: InstanciaDiaria }) {
   const fixos = instancia.itens.filter((i) => i.protecao === 'fixo')
   const diaPresencial = instancia.itens.some(
@@ -350,6 +369,10 @@ export default async function AmanhaPage({ searchParams }: Props) {
   const semanaAtiva = carregado.ok ? carregado.value.dados.semanaAtiva : null
   const mensagemErro = params.erro ? MENSAGENS_ERRO[params.erro] : undefined
   const editavel = instancia !== null && instancia.confirmadaEm === null
+  const alertas =
+    instancia !== null && carregado.ok
+      ? avaliarAlertas(instancia, carregado.value.dados.rotina)
+      : []
 
   return (
     <main className={styles.container}>
@@ -417,10 +440,17 @@ export default async function AmanhaPage({ searchParams }: Props) {
           <FixosDoDia instancia={instancia} />
           <LinhaDoTempo instancia={instancia} editavel={editavel} />
           <CargaPorArea itens={instancia.itens} />
+          <AlertasDoDia alertas={alertas} />
           {editavel && (
-            <form action="/api/dia" method="post">
+            <form action="/api/dia" method="post" className={styles.form}>
               <input type="hidden" name="acao" value="confirmar" />
               <input type="hidden" name="data" value={instancia.data} />
+              {alertas.length > 0 && (
+                <label className={styles.opcao} htmlFor="ciente-alertas">
+                  <input id="ciente-alertas" type="checkbox" name="ciente" />
+                  Estou ciente dos alertas do dia
+                </label>
+              )}
               <button className={styles.acao} type="submit">
                 Confirmar o dia
               </button>

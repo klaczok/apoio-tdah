@@ -270,4 +270,34 @@ describe('Amanhã', () => {
 
     expect(screen.getByRole('heading', { name: /substituir prioridade/i })).toBeInTheDocument()
   })
+
+  it('exibe alertas do dia antes da confirmação e pede reconhecimento', async () => {
+    const amanha = dataCivilAmanha()
+    let r = rotinaBase()
+    for (const [i, titulo] of ['Terapia', 'Consulta'].entries()) {
+      r = acrescentarCompromisso(r, {
+        titulo,
+        diaSemana: diaSemanaDe(amanha),
+        inicio: `09:${i === 0 ? '00' : '30'}`,
+        duracaoMin: 60,
+        categoria: 'saude',
+        tipo: 'fixo',
+      })
+    }
+    await comDiaPlanejado(r)
+
+    await renderizar()
+
+    const alertas = screen.getByRole('region', { name: /alertas do dia/i })
+    expect(alertas).toHaveTextContent(/sobrepo/i)
+    expect(screen.getByLabelText(/ciente dos alertas/i)).toBeInTheDocument()
+  })
+
+  it('sem alertas, confirmação não pede reconhecimento', async () => {
+    await comDiaPlanejado()
+
+    await renderizar()
+
+    expect(screen.queryByLabelText(/ciente dos alertas/i)).not.toBeInTheDocument()
+  })
 })
