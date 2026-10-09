@@ -172,4 +172,85 @@ describe('POST /api/dia', () => {
       (await estadoAtual()).dados.dias[amanha].itens.find((s) => s.id === item.id)!.inicio
     ).toBe(item.inicio)
   })
+
+  it('promover persiste prioridade; a quarta pede substituição sem alterar nada', async () => {
+    const amanha = dataCivilAmanha()
+    const diaAmanha = diaSemanaDe(amanha)
+    await comSemanaConfirmada((r) => {
+      let rr = r
+      for (const [i, titulo] of ['Exame', 'Consulta', 'Reunião'].entries()) {
+        rr = acrescentarCompromisso(rr, {
+          titulo,
+          diaSemana: diaAmanha,
+          inicio: `${String(9 + i).padStart(2, '0')}:00`,
+          duracaoMin: 30,
+          categoria: 'saude',
+          tipo: i === 0 ? 'fixo' : 'flexivel',
+        })
+      }
+      return rr
+    })
+    await requisicao({ acao: 'planejar' })
+    const itens = (await estadoAtual()).dados.dias[amanha].itens
+
+    await requisicao({ acao: 'promover', data: amanha, id: itens[0].id })
+    expect((await estadoAtual()).dados.dias[amanha].prioridades).toEqual([itens[0].id])
+
+    for (const item of itens.slice(1, 3)) {
+      await requisicao({ acao: 'promover', data: amanha, id: item.id })
+    }
+    const resposta = await requisicao({ acao: 'promover', data: amanha, id: itens[3].id })
+
+    expect(resposta.headers.get('location')).toBe(`/amanha?substituir=${itens[3].id}`)
+    expect((await estadoAtual()).dados.dias[amanha].prioridades).toHaveLength(3)
+  })
+
+  it('substituir troca a prioridade escolhida', async () => {
+    const amanha = dataCivilAmanha()
+    const diaAmanha = diaSemanaDe(amanha)
+    await comSemanaConfirmada((r) => {
+      let rr = r
+      for (const [i, titulo] of ['Exame', 'Consulta', 'Reunião'].entries()) {
+        rr = acrescentarCompromisso(rr, {
+          titulo,
+          diaSemana: diaAmanha,
+          inicio: `${String(9 + i).padStart(2, '0')}:00`,
+          duracaoMin: 30,
+          categoria: 'saude',
+          tipo: 'flexivel',
+        })
+      }
+      return rr
+    })
+    await requisicao({ acao: 'planejar' })
+    const itens = (await estadoAtual()).dados.dias[amanha].itens
+    for (const item of itens.slice(0, 3)) {
+      await requisicao({ acao: 'promover', data: amanha, id: item.id })
+    }
+
+    const resposta = await requisicao({
+      acao: 'substituir',
+      data: amanha,
+      novo: itens[3].id,
+      antigo: itens[1].id,
+    })
+
+    expect(resposta.headers.get('location')).toBe('/amanha?salvo=1')
+    const instancia = (await estadoAtual()).dados.dias[amanha]
+    expect(instancia.prioridades).toEqual([itens[0].id, itens[3].id, itens[2].id])
+  })
+
+  it('despromover remove a marca sem apagar o item', async () => {
+    await comSemanaConfirmada()
+    await requisicao({ acao: 'planejar' })
+    const amanha = dataCivilAmanha()
+    const itens = (await estadoAtual()).dados.dias[amanha].itens
+    await requisicao({ acao: 'promover', data: amanha, id: itens[0].id })
+
+    await requisicao({ acao: 'despromover', data: amanha, id: itens[0].id })
+
+    const instancia = (await estadoAtual()).dados.dias[amanha]
+    expect(instancia.prioridades).toEqual([])
+    expect(instancia.itens.some((i) => i.id === itens[0].id)).toBe(true)
+  })
 })

@@ -136,6 +136,10 @@
   cursor: pointer;
 }
 
+.formInline {
+  margin: 0;
+}
+
 .remover,
 .secundaria {
   padding: var(--space-xs) var(--space-sm);

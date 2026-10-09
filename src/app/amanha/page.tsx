@@ -21,6 +21,7 @@ type Props = {
     confirmado?: string
     salvo?: string
     erro?: string
+    substituir?: string
   }>
 }
 
@@ -103,6 +104,91 @@ function AcaoAjustar({ item, data }: { item: ItemDia; data: string }) {
         </button>
       </form>
     </details>
+  )
+}
+
+function AcaoPrioridade({
+  item,
+  data,
+  ehPrioridade,
+}: {
+  item: ItemDia
+  data: string
+  ehPrioridade: boolean
+}) {
+  return (
+    <form action="/api/dia" method="post" className={styles.formInline}>
+      <input type="hidden" name="acao" value={ehPrioridade ? 'despromover' : 'promover'} />
+      <input type="hidden" name="data" value={data} />
+      <input type="hidden" name="id" value={item.id} />
+      <button className={styles.secundaria} type="submit">
+        {ehPrioridade ? 'Remover prioridade' : 'Marcar como prioridade'}
+      </button>
+    </form>
+  )
+}
+
+// Até três prioridades do dia — seção própria antes dos detalhes flexíveis.
+function PrioridadesDoDia({ instancia }: { instancia: InstanciaDiaria }) {
+  if (instancia.prioridades.length === 0) return null
+  const itens = instancia.prioridades
+    .map((id) => instancia.itens.find((i) => i.id === id))
+    .filter((i): i is ItemDia => i !== undefined)
+  return (
+    <section className={styles.form} aria-label="Prioridades do dia">
+      <h2 className={styles.subtitulo}>Prioridades do dia</h2>
+      <ol className={styles.lista}>
+        {itens.map((item) => (
+          <li key={item.id} className={styles.item}>
+            <span className={styles.itemTexto}>
+              {horario(item)} · {item.titulo} · {ROTULOS_CATEGORIA[item.categoria]}
+            </span>
+          </li>
+        ))}
+      </ol>
+    </section>
+  )
+}
+
+// A quarta prioridade não é aceita automaticamente: o usuário escolhe qual
+// substituir — ou cancela voltando sem submeter.
+function Substituicao({
+  instancia,
+  candidatoId,
+}: {
+  instancia: InstanciaDiaria
+  candidatoId: string
+}) {
+  const candidato = instancia.itens.find((i) => i.id === candidatoId)
+  if (!candidato || instancia.prioridades.length === 0) return null
+  const atuais = instancia.prioridades
+    .map((id) => instancia.itens.find((i) => i.id === id))
+    .filter((i): i is ItemDia => i !== undefined)
+  return (
+    <section className={styles.form} aria-label="Substituir prioridade">
+      <h2 className={styles.subtitulo}>Substituir prioridade</h2>
+      <p className={styles.dica}>
+        Já são três prioridades. Escolha qual sai para “{candidato.titulo}” entrar — ou simplesmente
+        não escolha nada.
+      </p>
+      <form className={styles.form} action="/api/dia" method="post">
+        <input type="hidden" name="acao" value="substituir" />
+        <input type="hidden" name="data" value={instancia.data} />
+        <input type="hidden" name="novo" value={candidatoId} />
+        {atuais.map((item) => (
+          <label key={item.id} className={styles.opcao} htmlFor={`antigo-${item.id}`}>
+            <input id={`antigo-${item.id}`} type="radio" name="antigo" value={item.id} required />
+            {item.titulo} · {horario(item)}
+          </label>
+        ))}
+        <button className={styles.acao} type="submit">
+          Substituir
+        </button>
+      </form>
+      <Link className={styles.voltar} href="/amanha">
+        Cancelar e manter as prioridades atuais
+      </Link>
+    </section>
   )
 }
 
@@ -212,9 +298,17 @@ function LinhaDoTempo({ instancia, editavel }: { instancia: InstanciaDiaria; edi
               <span className={styles.itemTexto}>
                 {horario(e.item)} · {e.item.titulo} · {ROTULOS_CATEGORIA[e.item.categoria]} ·{' '}
                 {e.item.protecao === 'fixo' ? 'Fixo' : 'Flexível'}
+                {instancia.prioridades.includes(e.item.id) && ' · Prioridade'}
               </span>
               <p className={styles.dica}>{e.item.explicacao}</p>
               {editavel && <AcaoAjustar item={e.item} data={instancia.data} />}
+              {editavel && (
+                <AcaoPrioridade
+                  item={e.item}
+                  data={instancia.data}
+                  ehPrioridade={instancia.prioridades.includes(e.item.id)}
+                />
+              )}
             </li>
           )
         )}
@@ -230,6 +324,13 @@ function LinhaDoTempo({ instancia, editavel }: { instancia: InstanciaDiaria; edi
                 </span>
                 <p className={styles.dica}>{item.explicacao}</p>
                 {editavel && <AcaoAjustar item={item} data={instancia.data} />}
+                {editavel && (
+                  <AcaoPrioridade
+                    item={item}
+                    data={instancia.data}
+                    ehPrioridade={instancia.prioridades.includes(item.id)}
+                  />
+                )}
               </li>
             ))}
           </ul>
@@ -308,6 +409,10 @@ export default async function AmanhaPage({ searchParams }: Props) {
             <p role="status" className={styles.feedback}>
               Dia confirmado em {dataHoraParaTexto(instancia.confirmadaEm)}.
             </p>
+          )}
+          <PrioridadesDoDia instancia={instancia} />
+          {params.substituir && editavel && (
+            <Substituicao instancia={instancia} candidatoId={params.substituir} />
           )}
           <FixosDoDia instancia={instancia} />
           <LinhaDoTempo instancia={instancia} editavel={editavel} />

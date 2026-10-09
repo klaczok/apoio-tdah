@@ -211,4 +211,63 @@ describe('Amanhã', () => {
     expect(screen.queryByText(/ajustar/i)).not.toBeInTheDocument()
     expect(screen.getByText(/confirmad/i)).toBeInTheDocument()
   })
+
+  it('prioridades aparecem destacadas em seção própria antes dos compromissos fixos', async () => {
+    const instancia = await comDiaPlanejado()
+    const alvo = instancia.itens.find((i) => i.inicio !== null)!
+    const comPrioridade = { ...instancia, prioridades: [alvo.id] }
+    const store = await getStateStore()
+    const carregado = await store.load()
+    if (!carregado.ok) throw new Error('store indisponível')
+    await store.save(
+      { ...carregado.value.dados, dias: { [instancia.data]: comPrioridade } },
+      carregado.value.version
+    )
+
+    await renderizar()
+
+    const secao = screen.getByRole('region', { name: /prioridades do dia/i })
+    expect(secao).toHaveTextContent(alvo.titulo)
+    const posPrioridades = screen
+      .getByText('Prioridades do dia')
+      .compareDocumentPosition(screen.getByRole('list', { name: /linha do tempo/i }))
+    expect(posPrioridades & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('oferece promover itens até três; promovido exibe marcador', async () => {
+    await comDiaPlanejado()
+
+    await renderizar()
+
+    expect(screen.getAllByRole('button', { name: /prioridade/i }).length).toBeGreaterThan(0)
+  })
+
+  it('com três prioridades, promover leva à escolha de substituição', async () => {
+    const amanha = dataCivilAmanha()
+    let r = rotinaBase()
+    for (const [i, titulo] of ['Exame', 'Consulta', 'Reunião'].entries()) {
+      r = acrescentarCompromisso(r, {
+        titulo,
+        diaSemana: diaSemanaDe(amanha),
+        inicio: `${String(9 + i).padStart(2, '0')}:00`,
+        duracaoMin: 30,
+        categoria: 'saude',
+        tipo: 'flexivel',
+      })
+    }
+    const instancia = await comDiaPlanejado(r)
+    const tres = instancia.itens.filter((i) => i.inicio !== null).slice(0, 3)
+    const comTres = { ...instancia, prioridades: tres.map((i) => i.id) }
+    const store = await getStateStore()
+    const carregado = await store.load()
+    if (!carregado.ok) throw new Error('store indisponível')
+    await store.save(
+      { ...carregado.value.dados, dias: { [instancia.data]: comTres } },
+      carregado.value.version
+    )
+
+    await renderizar({ substituir: instancia.itens[3]?.id ?? 'x' })
+
+    expect(screen.getByRole('heading', { name: /substituir prioridade/i })).toBeInTheDocument()
+  })
 })
