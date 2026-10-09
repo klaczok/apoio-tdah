@@ -9,3 +9,8 @@ export function ehDataCivil(valor: string): boolean {
   const data = new Date(`${valor}T00:00:00Z`)
   return !Number.isNaN(data.getTime()) && data.toISOString().slice(0, 10) === valor
 }
+
+export function dataCivilParaTexto(iso: string): string {
+  const [ano, mes, dia] = iso.split('-')
+  return `${dia}/${mes}/${ano}`
+}

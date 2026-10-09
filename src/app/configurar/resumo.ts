@@ -1,6 +1,10 @@
 import {
   ROTULOS_CATEGORIA,
   ROTULOS_DIA,
+  ROTULOS_TIPO_ESTUDO,
+  ROTULOS_TIPO_MUSICA,
+  type BlocoEstudo,
+  type BlocoMusica,
   type Compromisso,
   type DiaSemana,
   type Periodo,
@@ -10,8 +14,13 @@ import type { Etapa } from './etapas'
 
 const A_CONFIRMAR = 'A confirmar'
 
-function rotulosDias(dias: DiaSemana[]): string {
+export function rotulosDias(dias: DiaSemana[]): string {
   return dias.map((d) => ROTULOS_DIA[d]).join(', ')
+}
+
+export function formatarMinutos(min: number): string {
+  if (min % 60 === 0) return `${min / 60}h`
+  return min > 60 ? `${Math.floor(min / 60)}h${min % 60}` : `${min} min`
 }
 
 export function resumoCompromisso(c: Compromisso): string {
@@ -22,6 +31,15 @@ export function resumoCompromisso(c: Compromisso): string {
 export function resumoPeriodo(p: Periodo): string {
   const tipo = p.tipo === 'cuidado-familiar' ? 'Cuidado familiar' : 'Indisponibilidade'
   return `${tipo} — ${ROTULOS_DIA[p.diaSemana]} ${p.inicio}–${p.fim}`
+}
+
+export function resumoBlocoEstudo(b: BlocoEstudo): string {
+  const realizado = b.realizadoMin != null ? ` · realizado ${b.realizadoMin} min` : ''
+  return `${ROTULOS_DIA[b.diaSemana]} ${b.inicio} · ${ROTULOS_TIPO_ESTUDO[b.tipo]} · planejado ${b.planejadoMin} min${realizado}`
+}
+
+export function resumoBlocoMusica(b: BlocoMusica): string {
+  return `${ROTULOS_DIA[b.diaSemana]} ${b.inicio} · ${ROTULOS_TIPO_MUSICA[b.tipo]} · ${b.duracaoMin} min`
 }
 
 export function resumoEtapa(rotina: RotinaRecorrente, etapa: Etapa): string {
@@ -60,6 +78,32 @@ export function resumoEtapa(rotina: RotinaRecorrente, etapa: Etapa): string {
         s.dormir ? `dormir ${s.dormir}` : 'dormir a confirmar',
         s.acordar ? `acordar ${s.acordar}` : 'acordar a confirmar',
       ].join(' · ')
+    }
+    case 'alimentacao': {
+      const a = rotina.alimentacao
+      if (!a) return A_CONFIRMAR
+      const visiveis = a.refeicoes.filter((r) => !r.oculta).length
+      const treino =
+        a.diasTreino === null
+          ? 'dias de treino a confirmar'
+          : a.diasTreino.length
+            ? `treino ${rotulosDias(a.diasTreino)}`
+            : 'sem dias de treino'
+      return `${visiveis} lembrete(s) de refeição · ${treino}`
+    }
+    case 'estudo': {
+      const e = rotina.estudo
+      if (!e) return A_CONFIRMAR
+      const meta =
+        e.metaSemanalMin != null
+          ? `meta ${formatarMinutos(e.metaSemanalMin)}/semana`
+          : 'meta a confirmar'
+      return `${meta} · ${e.blocos.length ? `${e.blocos.length} bloco(s)` : 'nenhum bloco'}`
+    }
+    case 'musica': {
+      const m = rotina.musica
+      if (m === null) return A_CONFIRMAR
+      return m.length ? `${m.length} bloco(s)` : 'Nenhum registrado'
     }
     case 'preferencias': {
       const partes = [

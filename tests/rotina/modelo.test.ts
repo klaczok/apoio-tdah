@@ -1,15 +1,25 @@
 import {
+  acrescentarBlocoEstudo,
+  acrescentarBlocoMusica,
   acrescentarCompromisso,
   acrescentarPeriodo,
+  atualizarBlocoEstudo,
+  atualizarBlocoMusica,
   ConfirmacaoFixoError,
   ItemNaoEncontradoError,
+  definirAlimentacao,
+  definirMetaEstudo,
   definirPresencial,
   definirPreferencias,
   definirSono,
   definirTrabalho,
+  removerBlocoEstudo,
+  removerBlocoMusica,
   removerCompromisso,
   removerPeriodo,
   rotinaVazia,
+  somatorioEstudo,
+  tipoDiaAlimentar,
   validarRotina,
   type RotinaRecorrente,
 } from '@/server/rotina/modelo'
@@ -207,6 +217,237 @@ describe('rotina recorrente — modelo', () => {
       expect(() =>
         definirPreferencias(rotinaVazia(), { transicaoMin: null, preferenciaCarga: 'extrema' })
       ).toThrow(SchemaInvalidoError)
+    })
+  })
+
+  describe('alimentação', () => {
+    const refeicoesPrescritas = [
+      { ref: 'cafe-da-manha', horario: '09:00', oculta: false },
+      { ref: 'almoco', horario: '12:45', oculta: false },
+      { ref: 'lanche-da-tarde', horario: '16:00', oculta: true },
+      { ref: 'jantar', horario: '20:30', oculta: false },
+    ] as const
+
+    it('registra refeições com horários editados e ocultação individual', () => {
+      const rotina = definirAlimentacao(rotinaVazia(), {
+        refeicoes: [...refeicoesPrescritas],
+        diasTreino: ['seg', 'qua'],
+        referenciaVersao: 1,
+      })
+      expect(rotina.alimentacao).toEqual({
+        refeicoes: [...refeicoesPrescritas],
+        diasTreino: ['seg', 'qua'],
+        referenciaVersao: 1,
+      })
+    })
+
+    it('mantém dias de treino e referência a confirmar quando ausentes', () => {
+      const rotina = definirAlimentacao(rotinaVazia(), {
+        refeicoes: [],
+        diasTreino: null,
+        referenciaVersao: null,
+      })
+      expect(rotina.alimentacao?.diasTreino).toBeNull()
+      expect(rotina.alimentacao?.referenciaVersao).toBeNull()
+    })
+
+    it('o tipo de dia seleciona com treino ou sem treino pela configuração', () => {
+      const rotina = definirAlimentacao(rotinaVazia(), {
+        refeicoes: [],
+        diasTreino: ['seg', 'qua', 'qui', 'sex'],
+        referenciaVersao: 1,
+      })
+      expect(tipoDiaAlimentar(rotina.alimentacao, 'seg')).toBe('com-treino')
+      expect(tipoDiaAlimentar(rotina.alimentacao, 'ter')).toBe('sem-treino')
+      expect(tipoDiaAlimentar(rotina.alimentacao, 'dom')).toBe('sem-treino')
+    })
+
+    it('tipo de dia fica a confirmar quando dias de treino não foram informados', () => {
+      const rotina = definirAlimentacao(rotinaVazia(), {
+        refeicoes: [],
+        diasTreino: null,
+        referenciaVersao: null,
+      })
+      expect(tipoDiaAlimentar(rotina.alimentacao, 'seg')).toBeNull()
+      expect(tipoDiaAlimentar(null, 'seg')).toBeNull()
+    })
+
+    it('rejeita refeição com horário inválido', () => {
+      expect(() =>
+        definirAlimentacao(rotinaVazia(), {
+          refeicoes: [{ ref: 'almoco', horario: '25:99', oculta: false }],
+          diasTreino: null,
+          referenciaVersao: null,
+        })
+      ).toThrow(SchemaInvalidoError)
+    })
+
+    it('rejeita refeição fora das previstas na prescrição', () => {
+      expect(() =>
+        definirAlimentacao(rotinaVazia(), {
+          refeicoes: [{ ref: 'ceia', horario: '22:00', oculta: false }],
+          diasTreino: null,
+          referenciaVersao: null,
+        })
+      ).toThrow(SchemaInvalidoError)
+    })
+
+    it('rejeita refeição duplicada', () => {
+      expect(() =>
+        definirAlimentacao(rotinaVazia(), {
+          refeicoes: [
+            { ref: 'almoco', horario: '12:30', oculta: false },
+            { ref: 'almoco', horario: '13:00', oculta: true },
+          ],
+          diasTreino: null,
+          referenciaVersao: null,
+        })
+      ).toThrow(SchemaInvalidoError)
+    })
+
+    it('valida a alimentação ao ler a rotina persistida', () => {
+      const rotina = validarRotina({
+        ...rotinaVazia(),
+        alimentacao: {
+          refeicoes: [{ ref: 'jantar', horario: '21:00', oculta: false }],
+          diasTreino: ['sab'],
+          referenciaVersao: 1,
+        },
+      })
+      expect(rotina.alimentacao?.refeicoes[0]).toEqual({
+        ref: 'jantar',
+        horario: '21:00',
+        oculta: false,
+      })
+    })
+  })
+
+  describe('estudo', () => {
+    const blocoTeoria = {
+      tipo: 'teoria',
+      diaSemana: 'seg',
+      inicio: '19:00',
+      planejadoMin: 60,
+      realizadoMin: null,
+    }
+
+    it('registra meta semanal ajustável sem impor a referência de 10 horas', () => {
+      expect(definirMetaEstudo(rotinaVazia(), 240).estudo?.metaSemanalMin).toBe(240)
+      expect(definirMetaEstudo(rotinaVazia(), 900).estudo?.metaSemanalMin).toBe(900)
+    })
+
+    it('meta não informada permanece a confirmar', () => {
+      const rotina = definirMetaEstudo(rotinaVazia(), null)
+      expect(rotina.estudo?.metaSemanalMin).toBeNull()
+      expect(rotina.estudo?.blocos).toEqual([])
+    })
+
+    it('bloco aceita somente as categorias previstas de estudo', () => {
+      for (const tipo of ['teoria', 'laboratorio-case', 'aplicacao-reflexao', 'revisao']) {
+        const rotina = acrescentarBlocoEstudo(rotinaVazia(), { ...blocoTeoria, tipo })
+        expect(rotina.estudo?.blocos[0].tipo).toBe(tipo)
+      }
+      for (const tipo of ['prova', 'estudo', 'trabalho']) {
+        expect(() => acrescentarBlocoEstudo(rotinaVazia(), { ...blocoTeoria, tipo })).toThrow(
+          SchemaInvalidoError
+        )
+      }
+    })
+
+    it('registra tempo planejado e realizado separadamente', () => {
+      const rotina = acrescentarBlocoEstudo(rotinaVazia(), {
+        ...blocoTeoria,
+        planejadoMin: 90,
+        realizadoMin: 45,
+      })
+      expect(rotina.estudo?.blocos[0].planejadoMin).toBe(90)
+      expect(rotina.estudo?.blocos[0].realizadoMin).toBe(45)
+    })
+
+    it('tempo realizado pode permanecer a confirmar', () => {
+      const rotina = acrescentarBlocoEstudo(rotinaVazia(), blocoTeoria)
+      expect(rotina.estudo?.blocos[0].realizadoMin).toBeNull()
+    })
+
+    it('edita e remove blocos de estudo sem confirmação, pois são flexíveis', () => {
+      let rotina = acrescentarBlocoEstudo(rotinaVazia(), blocoTeoria)
+      const id = rotina.estudo!.blocos[0].id
+      rotina = atualizarBlocoEstudo(rotina, id, {
+        ...blocoTeoria,
+        inicio: '20:30',
+        realizadoMin: 30,
+      })
+      expect(rotina.estudo?.blocos[0]).toMatchObject({ id, inicio: '20:30', realizadoMin: 30 })
+      rotina = removerBlocoEstudo(rotina, id)
+      expect(rotina.estudo?.blocos).toEqual([])
+    })
+
+    it('rejeita edição de bloco inexistente', () => {
+      const rotina = acrescentarBlocoEstudo(rotinaVazia(), blocoTeoria)
+      expect(() => atualizarBlocoEstudo(rotina, 'sumiu', blocoTeoria)).toThrow(
+        ItemNaoEncontradoError
+      )
+      expect(() => removerBlocoEstudo(rotina, 'sumiu')).toThrow(ItemNaoEncontradoError)
+    })
+
+    it('soma tempo por tipo separando planejado de realizado', () => {
+      let rotina = acrescentarBlocoEstudo(rotinaVazia(), {
+        ...blocoTeoria,
+        planejadoMin: 60,
+        realizadoMin: 40,
+      })
+      rotina = acrescentarBlocoEstudo(rotina, {
+        ...blocoTeoria,
+        diaSemana: 'qua',
+        planejadoMin: 30,
+        realizadoMin: null,
+      })
+      rotina = acrescentarBlocoEstudo(rotina, {
+        ...blocoTeoria,
+        tipo: 'revisao',
+        diaSemana: 'sab',
+        planejadoMin: 45,
+        realizadoMin: 45,
+      })
+      const total = somatorioEstudo(rotina.estudo)
+      expect(total.teoria).toEqual({ planejadoMin: 90, realizadoMin: 40 })
+      expect(total.revisao).toEqual({ planejadoMin: 45, realizadoMin: 45 })
+      expect(total['laboratorio-case']).toEqual({ planejadoMin: 0, realizadoMin: 0 })
+    })
+
+    it('blocos de estudo não viram compromissos fixos', () => {
+      const rotina = acrescentarBlocoEstudo(rotinaVazia(), blocoTeoria)
+      expect(rotina.compromissos).toBeNull()
+    })
+  })
+
+  describe('música', () => {
+    const blocoViolino = { tipo: 'violino', diaSemana: 'sab', inicio: '14:00', duracaoMin: 45 }
+
+    it('cria blocos distintos para estudo musical, composição e violino', () => {
+      for (const tipo of ['estudo-musical', 'composicao', 'violino']) {
+        const rotina = acrescentarBlocoMusica(rotinaVazia(), { ...blocoViolino, tipo })
+        expect(rotina.musica?.[0].tipo).toBe(tipo)
+      }
+    })
+
+    it('rejeita bloco musical fora dos tipos previstos', () => {
+      expect(() =>
+        acrescentarBlocoMusica(rotinaVazia(), { ...blocoViolino, tipo: 'show' })
+      ).toThrow(SchemaInvalidoError)
+    })
+
+    it('blocos são flexíveis: editáveis e removíveis sem confirmação', () => {
+      let rotina = acrescentarBlocoMusica(rotinaVazia(), blocoViolino)
+      const id = rotina.musica![0].id
+      rotina = atualizarBlocoMusica(rotina, id, { ...blocoViolino, duracaoMin: 30 })
+      expect(rotina.musica?.[0]).toMatchObject({ id, duracaoMin: 30 })
+      rotina = removerBlocoMusica(rotina, id)
+      expect(rotina.musica).toEqual([])
+    })
+
+    it('rejeita remoção de bloco inexistente', () => {
+      expect(() => removerBlocoMusica(rotinaVazia(), 'nada')).toThrow(ItemNaoEncontradoError)
     })
   })
 

@@ -3,16 +3,26 @@ import { getStateStore } from '@/server/persistence'
 import { erroParaParam } from '@/server/persistence/mensagens'
 import { ehEtapa, ETAPAS_DE_LISTA, proximaEtapa, type Etapa } from '@/app/configurar/etapas'
 import {
+  acrescentarBlocoEstudo,
+  acrescentarBlocoMusica,
   acrescentarCompromisso,
   acrescentarPeriodo,
+  atualizarBlocoEstudo,
+  atualizarBlocoMusica,
+  definirAlimentacao,
+  definirMetaEstudo,
   definirPreferencias,
   definirPresencial,
   definirSono,
   definirTrabalho,
+  REFEICAO_REFS,
+  removerBlocoEstudo,
+  removerBlocoMusica,
   removerCompromisso,
   removerPeriodo,
   type RotinaRecorrente,
 } from '@/server/rotina/modelo'
+import { VERSAO_REFERENCIA_ATUAL } from '@/server/rotina/referencia-alimentar'
 import { atualizarRotina } from '@/server/usecases/rotina'
 
 function textoOuNulo(form: FormData, campo: string): string | null {
@@ -89,6 +99,52 @@ function aplicador(etapa: Etapa, form: FormData): (rotina: RotinaRecorrente) => 
           inicio: String(form.get('inicio') ?? ''),
           fim: String(form.get('fim') ?? ''),
         })
+    }
+    case 'alimentacao': {
+      const dias = diasMarcados(form)
+      const refeicoes = REFEICAO_REFS.map((ref) => ({
+        ref,
+        horario: textoOuNulo(form, `horario-${ref}`),
+        oculta: form.get(`oculta-${ref}`) === 'on',
+      }))
+      const semTreino = form.get('semTreino') === 'on'
+      return (r) =>
+        definirAlimentacao(r, {
+          refeicoes,
+          diasTreino: dias.length ? dias : semTreino ? [] : null,
+          referenciaVersao: r.alimentacao?.referenciaVersao ?? VERSAO_REFERENCIA_ATUAL,
+        })
+    }
+    case 'estudo': {
+      const acao = form.get('acao')
+      const id = String(form.get('id') ?? '')
+      if (acao === 'remover') return (r) => removerBlocoEstudo(r, id)
+      if (acao === 'meta') {
+        const horas = textoOuNulo(form, 'metaHoras')
+        return (r) => definirMetaEstudo(r, horas === null ? null : Number(horas) * 60)
+      }
+      const entrada = {
+        tipo: String(form.get('tipo') ?? ''),
+        diaSemana: String(form.get('diaSemana') ?? ''),
+        inicio: String(form.get('inicio') ?? ''),
+        planejadoMin: Number(form.get('planejadoMin')),
+        realizadoMin: minutosOuNulo(form, 'realizadoMin'),
+      }
+      if (acao === 'atualizar') return (r) => atualizarBlocoEstudo(r, id, entrada)
+      return (r) => acrescentarBlocoEstudo(r, entrada)
+    }
+    case 'musica': {
+      const acao = form.get('acao')
+      const id = String(form.get('id') ?? '')
+      if (acao === 'remover') return (r) => removerBlocoMusica(r, id)
+      const entrada = {
+        tipo: String(form.get('tipo') ?? ''),
+        diaSemana: String(form.get('diaSemana') ?? ''),
+        inicio: String(form.get('inicio') ?? ''),
+        duracaoMin: Number(form.get('duracaoMin')),
+      }
+      if (acao === 'atualizar') return (r) => atualizarBlocoMusica(r, id, entrada)
+      return (r) => acrescentarBlocoMusica(r, entrada)
     }
   }
 }

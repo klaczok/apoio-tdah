@@ -4,6 +4,9 @@ export const ETAPAS = [
   'compromissos',
   'periodos',
   'sono',
+  'alimentacao',
+  'estudo',
+  'musica',
   'preferencias',
 ] as const
 
@@ -15,11 +18,19 @@ export const ROTULOS_ETAPA: Record<Etapa, string> = {
   compromissos: 'Compromissos',
   periodos: 'Períodos protegidos',
   sono: 'Sono',
+  alimentacao: 'Alimentação',
+  estudo: 'Estudo',
+  musica: 'Música',
   preferencias: 'Margens e carga',
 }
 
 // Etapas de lista permanecem na mesma tela após salvar; as demais avançam.
-export const ETAPAS_DE_LISTA: ReadonlySet<Etapa> = new Set(['compromissos', 'periodos'])
+export const ETAPAS_DE_LISTA: ReadonlySet<Etapa> = new Set([
+  'compromissos',
+  'periodos',
+  'estudo',
+  'musica',
+])
 
 export function ehEtapa(valor: string): valor is Etapa {
   return (ETAPAS as readonly string[]).includes(valor)

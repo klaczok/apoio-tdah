@@ -172,6 +172,29 @@
   color: var(--color-muted);
 }
 
+.subtitulo {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.edicao {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.edicao summary {
+  cursor: pointer;
+}
+
+.refeicao {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
 .voltar {
   align-self: flex-start;
   font-size: 0.95rem;
