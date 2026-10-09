@@ -7,6 +7,10 @@ import { instanciaDoDia } from '@/server/dia/gerar'
 import {
   DESTINOS_PENDENCIA,
   ESTADOS_REVISAO,
+  ROTULOS_DESTINO,
+  ROTULOS_ENERGIA,
+  ROTULOS_ESTADO,
+  ROTULOS_SOBRECARGA,
   incluirPendencia,
   sinteseRevisao,
   type InstanciaDiaria,
@@ -25,28 +29,6 @@ type Props = {
     prever?: string
     destino?: string
   }>
-}
-
-const ROTULOS_ESTADO: Record<string, string> = {
-  realizado: 'Realizado',
-  parcial: 'Parcial',
-  reprogramado: 'Reprogramado',
-  descartado: 'Descartado',
-}
-
-const ROTULOS_ENERGIA: Record<string, string> = { baixa: 'Baixa', ok: 'Ok', alta: 'Alta' }
-const ROTULOS_SOBRECARGA: Record<string, string> = {
-  leve: 'Leve',
-  ok: 'Ok',
-  pesada: 'Pesada',
-}
-
-const ROTULOS_DESTINO: Record<string, string> = {
-  manter: 'Manter',
-  reduzir: 'Reduzir',
-  dividir: 'Dividir',
-  'trocar-dia': 'Trocar de dia',
-  descartar: 'Descartar',
 }
 
 function FormEstado({ instancia, id }: { instancia: InstanciaDiaria; id: string }) {
@@ -380,6 +362,8 @@ export default async function HojePage({ searchParams }: Props) {
       <Link href="/amanha">Planejar amanhã</Link>
 
       <Link href="/semana">Ver a semana</Link>
+
+      <Link href="/historico">Histórico</Link>
 
       <Link href="/proposta">Proposta da semana</Link>
 
