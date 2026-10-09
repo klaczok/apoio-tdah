@@ -12,7 +12,7 @@ echo "Running smoke test against $URL"
 
 if [ -n "${VERCEL_TOKEN:-}" ]; then
   echo "Using Vercel token to bypass deployment protection"
-  RESPONSE=$(npx --yes vercel@61.1.0 curl "$URL" --token "$VERCEL_TOKEN" --yes)
+  RESPONSE=$(npx --yes vercel@61.1.0 curl --token "$VERCEL_TOKEN" -y "$URL")
   echo "$RESPONSE" | grep -q "Apoio à Rotina" || {
     echo "Smoke test failed: product name not found in response"
     exit 1
