@@ -4,7 +4,9 @@ import EtapaPage from '@/app/configurar/[etapa]/page'
 import { getStateStore } from '@/server/persistence'
 import { estadoVazio } from '@/server/persistence/estado'
 import {
+  acrescentarBlocoEstudo,
   acrescentarCompromisso,
+  definirAlimentacao,
   definirSono,
   definirTrabalho,
   rotinaVazia,
@@ -43,6 +45,9 @@ describe('Configuração da rotina — resumo', () => {
       /compromissos/i,
       /períodos/i,
       /sono/i,
+      /alimentação/i,
+      /estudo/i,
+      /música/i,
       /margens e carga/i,
     ]) {
       expect(screen.getByRole('link', { name: nome })).toBeInTheDocument()
@@ -53,7 +58,7 @@ describe('Configuração da rotina — resumo', () => {
     await gravar()
     await renderizarIndex()
 
-    expect(screen.getAllByText(/a confirmar/i).length).toBeGreaterThanOrEqual(6)
+    expect(screen.getAllByText(/a confirmar/i).length).toBeGreaterThanOrEqual(9)
   })
 
   it('resume seções já configuradas', async () => {
@@ -117,5 +122,77 @@ describe('Configuração da rotina — etapas', () => {
 
   it('etapa desconhecida redireciona ou informa', async () => {
     await expect(renderizarEtapa('inexistente')).rejects.toThrow()
+  })
+
+  it('etapa alimentação usa os horários prescritos como valores iniciais editáveis', async () => {
+    await gravar()
+    await renderizarEtapa('alimentacao')
+
+    expect(screen.getByLabelText('Café da manhã')).toHaveValue('09:00')
+    expect(screen.getByLabelText('Almoço')).toHaveValue('12:30')
+    expect(screen.getByLabelText('Lanche da tarde')).toHaveValue('16:00')
+    expect(screen.getByLabelText('Jantar')).toHaveValue('20:30')
+    expect(screen.getAllByRole('checkbox', { name: /ocultar/i })).toHaveLength(4)
+    expect(screen.getByRole('checkbox', { name: /sem dias de treino/i })).toBeInTheDocument()
+  })
+
+  it('etapa alimentação exibe fonte e data da referência sem dados de contato', async () => {
+    await gravar()
+    await renderizarEtapa('alimentacao')
+
+    expect(screen.getByText(/fonte:/i)).toBeInTheDocument()
+    expect(screen.getByText(/06\/10\/2026/)).toBeInTheDocument()
+    expect(screen.getByText(/dias com treino —/i)).toBeInTheDocument()
+    expect(screen.getByText(/dias sem treino —/i)).toBeInTheDocument()
+    expect(screen.queryByText(/@|www\.|telefone/i)).not.toBeInTheDocument()
+  })
+
+  it('etapa alimentação indica os dias que usam cada referência', async () => {
+    const rotina = definirAlimentacao(rotinaVazia(), {
+      refeicoes: [],
+      diasTreino: ['seg', 'qua', 'qui', 'sex'],
+      referenciaVersao: null,
+    })
+    await gravar(rotina)
+    await renderizarEtapa('alimentacao')
+
+    expect(screen.getByRole('checkbox', { name: /segunda/i })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: /terça/i })).not.toBeChecked()
+  })
+
+  it('etapa estudo oferece meta ajustável e somente as categorias previstas', async () => {
+    await gravar()
+    await renderizarEtapa('estudo')
+
+    expect(screen.getByLabelText(/meta semanal/i)).toBeInTheDocument()
+    for (const nome of [/teoria/i, /laboratório\/case/i, /aplicação\/reflexão/i, /revisão/i]) {
+      expect(screen.getByRole('option', { name: nome })).toBeInTheDocument()
+    }
+    expect(screen.queryByRole('option', { name: /prova/i })).not.toBeInTheDocument()
+  })
+
+  it('etapa estudo lista blocos com tempo planejado e realizado separados', async () => {
+    const rotina = acrescentarBlocoEstudo(rotinaVazia(), {
+      tipo: 'teoria',
+      diaSemana: 'seg',
+      inicio: '19:00',
+      planejadoMin: 60,
+      realizadoMin: 45,
+    })
+    await gravar(rotina)
+    await renderizarEtapa('estudo')
+
+    expect(screen.getByText(/segunda 19:00 · teoria/i)).toBeInTheDocument()
+    expect(screen.getByText(/planejado 60 min · realizado 45 min/i)).toBeInTheDocument()
+  })
+
+  it('etapa música oferece somente os três tipos de bloco', async () => {
+    await gravar()
+    await renderizarEtapa('musica')
+
+    for (const nome of [/estudo musical/i, /composição/i, /violino/i]) {
+      expect(screen.getByRole('option', { name: nome })).toBeInTheDocument()
+    }
+    expect(screen.queryByRole('option', { name: /show/i })).not.toBeInTheDocument()
   })
 })

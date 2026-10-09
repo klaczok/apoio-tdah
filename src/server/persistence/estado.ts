@@ -4,7 +4,7 @@ import { SchemaInvalidoError } from './schema-error'
 
 export { SchemaInvalidoError }
 
-export const SCHEMA_VERSION = 2
+export const SCHEMA_VERSION = 3
 
 export type EstadoPrivado = {
   notasPorDia: Record<string, string>
@@ -22,12 +22,20 @@ function migrarDeV1(raw: unknown): unknown {
   return { ...(raw as Record<string, unknown>), rotina: rotinaVazia() }
 }
 
+function migrarDeV2(raw: unknown): unknown {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    throw new SchemaInvalidoError('estado v2 não é um objeto')
+  }
+  return raw
+}
+
 export function validarEstadoPrivado(raw: unknown, schemaVersion: number): EstadoPrivado {
   if (schemaVersion > SCHEMA_VERSION) {
     throw new SchemaInvalidoError(`versão de schema não suportada: ${schemaVersion}`)
   }
   let dados = raw
   if (schemaVersion === 1) dados = migrarDeV1(dados)
+  if (schemaVersion === 2) dados = migrarDeV2(dados)
 
   if (typeof dados !== 'object' || dados === null || Array.isArray(dados)) {
     throw new SchemaInvalidoError('estado não é um objeto')

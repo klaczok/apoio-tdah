@@ -61,6 +61,77 @@ export type Compromisso = {
   tipo: 'fixo' | 'flexivel'
 }
 
+export const REFEICAO_REFS = ['cafe-da-manha', 'almoco', 'lanche-da-tarde', 'jantar'] as const
+export type RefeicaoRef = (typeof REFEICAO_REFS)[number]
+
+export const REFEICOES_PADRAO: Record<RefeicaoRef, { titulo: string; horario: string }> = {
+  'cafe-da-manha': { titulo: 'Café da manhã', horario: '09:00' },
+  almoco: { titulo: 'Almoço', horario: '12:30' },
+  'lanche-da-tarde': { titulo: 'Lanche da tarde', horario: '16:00' },
+  jantar: { titulo: 'Jantar', horario: '20:30' },
+}
+
+export const TIPOS_DIA_ALIMENTAR = ['com-treino', 'sem-treino'] as const
+export type TipoDiaAlimentar = (typeof TIPOS_DIA_ALIMENTAR)[number]
+
+export const ROTULOS_TIPO_DIA: Record<TipoDiaAlimentar, string> = {
+  'com-treino': 'Dias com treino',
+  'sem-treino': 'Dias sem treino',
+}
+
+export type RefeicaoConfig = {
+  ref: RefeicaoRef
+  horario: string | null
+  oculta: boolean
+}
+
+export type AlimentacaoConfig = {
+  refeicoes: RefeicaoConfig[]
+  diasTreino: DiaSemana[] | null
+  referenciaVersao: number | null
+}
+
+export const TIPOS_ESTUDO = ['teoria', 'laboratorio-case', 'aplicacao-reflexao', 'revisao'] as const
+export type TipoEstudo = (typeof TIPOS_ESTUDO)[number]
+
+export const ROTULOS_TIPO_ESTUDO: Record<TipoEstudo, string> = {
+  teoria: 'Teoria',
+  'laboratorio-case': 'Laboratório/case',
+  'aplicacao-reflexao': 'Aplicação/reflexão',
+  revisao: 'Revisão',
+}
+
+export type BlocoEstudo = {
+  id: string
+  tipo: TipoEstudo
+  diaSemana: DiaSemana
+  inicio: string
+  planejadoMin: number
+  realizadoMin: number | null
+}
+
+export type EstudoConfig = {
+  metaSemanalMin: number | null
+  blocos: BlocoEstudo[]
+}
+
+export const TIPOS_MUSICA = ['estudo-musical', 'composicao', 'violino'] as const
+export type TipoMusica = (typeof TIPOS_MUSICA)[number]
+
+export const ROTULOS_TIPO_MUSICA: Record<TipoMusica, string> = {
+  'estudo-musical': 'Estudo musical',
+  composicao: 'Composição',
+  violino: 'Violino',
+}
+
+export type BlocoMusica = {
+  id: string
+  tipo: TipoMusica
+  diaSemana: DiaSemana
+  inicio: string
+  duracaoMin: number
+}
+
 export type TipoPeriodo = 'cuidado-familiar' | 'indisponibilidade'
 
 export type Periodo = {
@@ -101,6 +172,9 @@ export type RotinaRecorrente = {
   compromissos: Compromisso[] | null
   periodos: Periodo[] | null
   sono: SonoConfig | null
+  alimentacao: AlimentacaoConfig | null
+  estudo: EstudoConfig | null
+  musica: BlocoMusica[] | null
   margens: MargensConfig | null
   preferenciaCarga: PreferenciaCarga | null
 }
@@ -112,6 +186,9 @@ export function rotinaVazia(): RotinaRecorrente {
     compromissos: null,
     periodos: null,
     sono: null,
+    alimentacao: null,
+    estudo: null,
+    musica: null,
     margens: null,
     preferenciaCarga: null,
   }
@@ -127,6 +204,18 @@ export function ehDiaSemana(valor: string): valor is DiaSemana {
 
 export function ehCategoria(valor: string): valor is Categoria {
   return (CATEGORIAS as readonly string[]).includes(valor)
+}
+
+export function ehRefeicaoRef(valor: string): valor is RefeicaoRef {
+  return (REFEICAO_REFS as readonly string[]).includes(valor)
+}
+
+export function ehTipoEstudo(valor: string): valor is TipoEstudo {
+  return (TIPOS_ESTUDO as readonly string[]).includes(valor)
+}
+
+export function ehTipoMusica(valor: string): valor is TipoMusica {
+  return (TIPOS_MUSICA as readonly string[]).includes(valor)
 }
 
 function ehObjeto(valor: unknown): valor is Record<string, unknown> {
@@ -244,6 +333,95 @@ function validarPeriodo(raw: unknown): Periodo {
   return { id, tipo, diaSemana, inicio, fim }
 }
 
+function validarRefeicao(raw: unknown): RefeicaoConfig {
+  if (!ehObjeto(raw)) throw new SchemaInvalidoError('refeição inválida')
+  const { ref, horario, oculta } = raw
+  if (typeof ref !== 'string' || !ehRefeicaoRef(ref)) {
+    throw new SchemaInvalidoError('refeição desconhecida')
+  }
+  if (typeof oculta !== 'boolean') {
+    throw new SchemaInvalidoError('refeição com ocultação inválida')
+  }
+  return { ref, horario: horaOuNula(horario, 'refeicao.horario'), oculta }
+}
+
+function validarAlimentacao(raw: unknown): AlimentacaoConfig {
+  if (!ehObjeto(raw)) throw new SchemaInvalidoError('alimentação inválida')
+  const refeicoes = listaOuNula(raw.refeicoes, 'refeicoes', validarRefeicao) ?? []
+  const refs = refeicoes.map((r) => r.ref)
+  if (new Set(refs).size !== refs.length) {
+    throw new SchemaInvalidoError('refeição duplicada')
+  }
+  const versao = raw.referenciaVersao
+  if (versao != null && (typeof versao !== 'number' || !Number.isInteger(versao) || versao < 1)) {
+    throw new SchemaInvalidoError('versão de referência inválida')
+  }
+  return {
+    refeicoes,
+    diasTreino: raw.diasTreino == null ? null : diasValidos(raw.diasTreino, 'diasTreino'),
+    referenciaVersao: versao ?? null,
+  }
+}
+
+function validarMetaEstudo(valor: unknown): number {
+  if (typeof valor !== 'number' || !Number.isInteger(valor) || valor <= 0) {
+    throw new SchemaInvalidoError('meta semanal de estudo inválida')
+  }
+  return valor
+}
+
+function validarBlocoEstudo(raw: unknown): BlocoEstudo {
+  if (!ehObjeto(raw)) throw new SchemaInvalidoError('bloco de estudo inválido')
+  const { id, tipo, diaSemana, inicio, planejadoMin, realizadoMin } = raw
+  if (typeof id !== 'string' || !id) throw new SchemaInvalidoError('bloco de estudo sem id')
+  if (typeof tipo !== 'string' || !ehTipoEstudo(tipo)) {
+    throw new SchemaInvalidoError('bloco de estudo com tipo inválido')
+  }
+  if (typeof diaSemana !== 'string' || !ehDiaSemana(diaSemana)) {
+    throw new SchemaInvalidoError('bloco de estudo com dia inválido')
+  }
+  if (typeof inicio !== 'string' || !ehHora(inicio)) {
+    throw new SchemaInvalidoError('bloco de estudo com horário inválido')
+  }
+  if (typeof planejadoMin !== 'number' || !Number.isInteger(planejadoMin) || planejadoMin <= 0) {
+    throw new SchemaInvalidoError('bloco de estudo com tempo planejado inválido')
+  }
+  if (
+    realizadoMin != null &&
+    (typeof realizadoMin !== 'number' || !Number.isInteger(realizadoMin) || realizadoMin < 0)
+  ) {
+    throw new SchemaInvalidoError('bloco de estudo com tempo realizado inválido')
+  }
+  return { id, tipo, diaSemana, inicio, planejadoMin, realizadoMin: realizadoMin ?? null }
+}
+
+function validarEstudo(raw: unknown): EstudoConfig {
+  if (!ehObjeto(raw)) throw new SchemaInvalidoError('estudo inválido')
+  return {
+    metaSemanalMin: raw.metaSemanalMin == null ? null : validarMetaEstudo(raw.metaSemanalMin),
+    blocos: listaOuNula(raw.blocos, 'blocos', validarBlocoEstudo) ?? [],
+  }
+}
+
+function validarBlocoMusica(raw: unknown): BlocoMusica {
+  if (!ehObjeto(raw)) throw new SchemaInvalidoError('bloco de música inválido')
+  const { id, tipo, diaSemana, inicio, duracaoMin } = raw
+  if (typeof id !== 'string' || !id) throw new SchemaInvalidoError('bloco de música sem id')
+  if (typeof tipo !== 'string' || !ehTipoMusica(tipo)) {
+    throw new SchemaInvalidoError('bloco de música com tipo inválido')
+  }
+  if (typeof diaSemana !== 'string' || !ehDiaSemana(diaSemana)) {
+    throw new SchemaInvalidoError('bloco de música com dia inválido')
+  }
+  if (typeof inicio !== 'string' || !ehHora(inicio)) {
+    throw new SchemaInvalidoError('bloco de música com horário inválido')
+  }
+  if (typeof duracaoMin !== 'number' || !Number.isInteger(duracaoMin) || duracaoMin <= 0) {
+    throw new SchemaInvalidoError('bloco de música com duração inválida')
+  }
+  return { id, tipo, diaSemana, inicio, duracaoMin }
+}
+
 export function definirTrabalho(rotina: RotinaRecorrente, entrada: unknown): RotinaRecorrente {
   return { ...rotina, trabalho: validarTrabalho(entrada) }
 }
@@ -307,6 +485,122 @@ export function removerPeriodo(
   return { ...rotina, periodos: lista.filter((p) => p.id !== id) }
 }
 
+export function definirAlimentacao(rotina: RotinaRecorrente, entrada: unknown): RotinaRecorrente {
+  return { ...rotina, alimentacao: validarAlimentacao(entrada) }
+}
+
+export function tipoDiaAlimentar(
+  alimentacao: AlimentacaoConfig | null,
+  dia: DiaSemana
+): TipoDiaAlimentar | null {
+  if (!alimentacao || alimentacao.diasTreino === null) return null
+  return alimentacao.diasTreino.includes(dia) ? 'com-treino' : 'sem-treino'
+}
+
+export function definirMetaEstudo(rotina: RotinaRecorrente, meta: unknown): RotinaRecorrente {
+  return {
+    ...rotina,
+    estudo: {
+      metaSemanalMin: meta == null ? null : validarMetaEstudo(meta),
+      blocos: rotina.estudo?.blocos ?? [],
+    },
+  }
+}
+
+export function acrescentarBlocoEstudo(
+  rotina: RotinaRecorrente,
+  entrada: unknown
+): RotinaRecorrente {
+  const bloco = validarBlocoEstudo(
+    ehObjeto(entrada) ? { ...entrada, id: entrada.id ?? randomUUID() } : entrada
+  )
+  const estudo = rotina.estudo
+  return {
+    ...rotina,
+    estudo: {
+      metaSemanalMin: estudo?.metaSemanalMin ?? null,
+      blocos: [...(estudo?.blocos ?? []), bloco],
+    },
+  }
+}
+
+export function atualizarBlocoEstudo(
+  rotina: RotinaRecorrente,
+  id: string,
+  entrada: unknown
+): RotinaRecorrente {
+  const blocos = rotina.estudo?.blocos ?? []
+  if (!blocos.some((b) => b.id === id)) {
+    throw new ItemNaoEncontradoError('bloco de estudo não encontrado')
+  }
+  const bloco = validarBlocoEstudo(ehObjeto(entrada) ? { ...entrada, id } : entrada)
+  return {
+    ...rotina,
+    estudo: {
+      metaSemanalMin: rotina.estudo?.metaSemanalMin ?? null,
+      blocos: blocos.map((b) => (b.id === id ? bloco : b)),
+    },
+  }
+}
+
+export function removerBlocoEstudo(rotina: RotinaRecorrente, id: string): RotinaRecorrente {
+  const blocos = rotina.estudo?.blocos ?? []
+  if (!blocos.some((b) => b.id === id)) {
+    throw new ItemNaoEncontradoError('bloco de estudo não encontrado')
+  }
+  return {
+    ...rotina,
+    estudo: {
+      metaSemanalMin: rotina.estudo?.metaSemanalMin ?? null,
+      blocos: blocos.filter((b) => b.id !== id),
+    },
+  }
+}
+
+export function somatorioEstudo(
+  estudo: EstudoConfig | null
+): Record<TipoEstudo, { planejadoMin: number; realizadoMin: number }> {
+  const totais = Object.fromEntries(
+    TIPOS_ESTUDO.map((tipo) => [tipo, { planejadoMin: 0, realizadoMin: 0 }])
+  ) as Record<TipoEstudo, { planejadoMin: number; realizadoMin: number }>
+  for (const bloco of estudo?.blocos ?? []) {
+    totais[bloco.tipo].planejadoMin += bloco.planejadoMin
+    totais[bloco.tipo].realizadoMin += bloco.realizadoMin ?? 0
+  }
+  return totais
+}
+
+export function acrescentarBlocoMusica(
+  rotina: RotinaRecorrente,
+  entrada: unknown
+): RotinaRecorrente {
+  const bloco = validarBlocoMusica(
+    ehObjeto(entrada) ? { ...entrada, id: entrada.id ?? randomUUID() } : entrada
+  )
+  return { ...rotina, musica: [...(rotina.musica ?? []), bloco] }
+}
+
+export function atualizarBlocoMusica(
+  rotina: RotinaRecorrente,
+  id: string,
+  entrada: unknown
+): RotinaRecorrente {
+  const blocos = rotina.musica ?? []
+  if (!blocos.some((b) => b.id === id)) {
+    throw new ItemNaoEncontradoError('bloco de música não encontrado')
+  }
+  const bloco = validarBlocoMusica(ehObjeto(entrada) ? { ...entrada, id } : entrada)
+  return { ...rotina, musica: blocos.map((b) => (b.id === id ? bloco : b)) }
+}
+
+export function removerBlocoMusica(rotina: RotinaRecorrente, id: string): RotinaRecorrente {
+  const blocos = rotina.musica ?? []
+  if (!blocos.some((b) => b.id === id)) {
+    throw new ItemNaoEncontradoError('bloco de música não encontrado')
+  }
+  return { ...rotina, musica: blocos.filter((b) => b.id !== id) }
+}
+
 function listaOuNula<T>(valor: unknown, campo: string, validar: (v: unknown) => T): T[] | null {
   if (valor == null) return null
   if (!Array.isArray(valor)) throw new SchemaInvalidoError(`${campo} não é lista`)
@@ -325,6 +619,9 @@ export function validarRotina(raw: unknown): RotinaRecorrente {
     compromissos: listaOuNula(raw.compromissos, 'compromissos', validarCompromisso),
     periodos: listaOuNula(raw.periodos, 'periodos', validarPeriodo),
     sono: nuloOu(raw.sono, validarSono),
+    alimentacao: nuloOu(raw.alimentacao, validarAlimentacao),
+    estudo: nuloOu(raw.estudo, validarEstudo),
+    musica: listaOuNula(raw.musica, 'musica', validarBlocoMusica),
     margens: nuloOu(raw.margens, validarMargens),
     preferenciaCarga: nuloOu(raw.preferenciaCarga, validarCarga),
   }

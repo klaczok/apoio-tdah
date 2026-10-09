@@ -2,17 +2,44 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import styles from '../configurar.module.css'
 import { ehEtapa, ETAPAS, ROTULOS_ETAPA, type Etapa } from '../etapas'
-import { resumoCompromisso, resumoPeriodo } from '../resumo'
+import {
+  resumoBlocoEstudo,
+  resumoBlocoMusica,
+  resumoCompromisso,
+  resumoPeriodo,
+  rotulosDias,
+} from '../resumo'
 import { getStateStore } from '@/server/persistence'
 import { MENSAGENS_ERRO } from '@/server/persistence/mensagens'
+import { dataCivilParaTexto } from '@/server/tempo'
 import {
   CATEGORIAS,
   DIAS_SEMANA,
+  REFEICAO_REFS,
+  REFEICOES_PADRAO,
   ROTULOS_CATEGORIA,
   ROTULOS_DIA,
+  ROTULOS_TIPO_DIA,
+  ROTULOS_TIPO_ESTUDO,
+  ROTULOS_TIPO_MUSICA,
+  somatorioEstudo,
+  TIPOS_DIA_ALIMENTAR,
+  TIPOS_ESTUDO,
+  TIPOS_MUSICA,
+  tipoDiaAlimentar,
   rotinaVazia,
+  type AlimentacaoConfig,
+  type BlocoEstudo,
+  type BlocoMusica,
+  type DiaSemana,
   type RotinaRecorrente,
+  type TipoDiaAlimentar,
 } from '@/server/rotina/modelo'
+import {
+  referenciaAlimentar,
+  VERSAO_REFERENCIA_ATUAL,
+  type PlanoTipoDia,
+} from '@/server/rotina/referencia-alimentar'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,10 +53,16 @@ const ROTULOS_TIPO_PERIODO = {
   indisponibilidade: 'Indisponibilidade',
 } as const
 
-function SelecaoDias({ marcados }: { marcados: readonly string[] }) {
+function SelecaoDias({
+  marcados,
+  titulo = 'Dias da semana',
+}: {
+  marcados: readonly string[]
+  titulo?: string
+}) {
   return (
     <fieldset className={styles.fieldset}>
-      <legend className={styles.legend}>Dias da semana</legend>
+      <legend className={styles.legend}>{titulo}</legend>
       {DIAS_SEMANA.map((dia) => (
         <label key={dia} className={styles.opcao} htmlFor={`dia-${dia}`}>
           <input
@@ -356,12 +389,368 @@ function FormPreferencias({ rotina }: { rotina: RotinaRecorrente }) {
   )
 }
 
+function diasDoTipoDia(alimentacao: AlimentacaoConfig | null, tipo: TipoDiaAlimentar): string {
+  if (!alimentacao || alimentacao.diasTreino === null) return 'a confirmar'
+  const dias = DIAS_SEMANA.filter((d) => tipoDiaAlimentar(alimentacao, d) === tipo)
+  return dias.length ? rotulosDias(dias) : 'nenhum dia'
+}
+
+function PlanoPrescrito({
+  tipo,
+  plano,
+  alimentacao,
+}: {
+  tipo: TipoDiaAlimentar
+  plano: PlanoTipoDia
+  alimentacao: AlimentacaoConfig | null
+}) {
+  return (
+    <details className={styles.edicao}>
+      <summary className={styles.label}>
+        {ROTULOS_TIPO_DIA[tipo]} — {diasDoTipoDia(alimentacao, tipo)}
+      </summary>
+      {plano.refeicoes.map((refeicao) => (
+        <div key={refeicao.ref} className={styles.refeicao}>
+          <p className={styles.label}>{refeicao.titulo}</p>
+          <ul className={styles.lista}>
+            {refeicao.itens.map((item) => (
+              <li key={item} className={styles.itemTexto}>
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+      {plano.notas.map((nota) => (
+        <p key={nota} className={styles.dica}>
+          {nota}
+        </p>
+      ))}
+    </details>
+  )
+}
+
+function FormAlimentacao({ rotina }: { rotina: RotinaRecorrente }) {
+  const a = rotina.alimentacao
+  const porRef = new Map((a?.refeicoes ?? []).map((r) => [r.ref, r]))
+  const referencia = referenciaAlimentar(a?.referenciaVersao ?? VERSAO_REFERENCIA_ATUAL)
+  return (
+    <>
+      <form className={styles.form} action="/api/rotina/alimentacao" method="post">
+        <p className={styles.dica}>
+          Os horários prescritos aparecem como ponto de partida e podem ser editados ou ocultados.
+          Sem dias de treino marcados, a escolha do cardápio fica a confirmar.
+        </p>
+        <fieldset className={styles.fieldset}>
+          <legend className={styles.legend}>Lembretes de refeição</legend>
+          {REFEICAO_REFS.map((ref) => {
+            const padrao = REFEICOES_PADRAO[ref]
+            const salvo = porRef.get(ref)
+            return (
+              <div key={ref} className={styles.refeicao}>
+                <label className={styles.label} htmlFor={`horario-${ref}`}>
+                  {padrao.titulo}
+                </label>
+                <input
+                  className={styles.input}
+                  id={`horario-${ref}`}
+                  name={`horario-${ref}`}
+                  type="time"
+                  defaultValue={salvo?.horario ?? padrao.horario}
+                />
+                <label className={styles.opcao} htmlFor={`oculta-${ref}`}>
+                  <input
+                    id={`oculta-${ref}`}
+                    type="checkbox"
+                    name={`oculta-${ref}`}
+                    defaultChecked={salvo?.oculta ?? false}
+                  />
+                  Ocultar {padrao.titulo}
+                </label>
+              </div>
+            )
+          })}
+        </fieldset>
+        <SelecaoDias marcados={a?.diasTreino ?? []} titulo="Dias com treino" />
+        <label className={styles.opcao} htmlFor="semTreino">
+          <input
+            id="semTreino"
+            type="checkbox"
+            name="semTreino"
+            defaultChecked={a?.diasTreino?.length === 0}
+          />
+          Sem dias de treino — todos os dias usam o cardápio sem treino
+        </label>
+        <button className={styles.acao} type="submit">
+          Salvar e continuar
+        </button>
+      </form>
+      {referencia && (
+        <section className={styles.form} aria-label="Referência alimentar prescrita">
+          <h2 className={styles.subtitulo}>Referência prescrita</h2>
+          <p className={styles.dica}>
+            Fonte: {referencia.fonte} · referência de{' '}
+            {dataCivilParaTexto(referencia.dataReferencia)}
+          </p>
+          <p className={styles.dica}>
+            Conteúdo transcrito da prescrição, sem cálculo de porções ou calorias.
+          </p>
+          {TIPOS_DIA_ALIMENTAR.map((tipo) => (
+            <PlanoPrescrito
+              key={tipo}
+              tipo={tipo}
+              plano={referencia.porTipoDia[tipo]}
+              alimentacao={a}
+            />
+          ))}
+        </section>
+      )}
+    </>
+  )
+}
+
+function FormBloco<T extends string>({
+  etapa,
+  tipos,
+  rotulos,
+  sufixo,
+  bloco,
+  campoMinutos,
+  comRealizado,
+}: {
+  etapa: 'estudo' | 'musica'
+  tipos: readonly T[]
+  rotulos: Record<T, string>
+  sufixo: string
+  bloco?: {
+    id: string
+    tipo: T
+    diaSemana: DiaSemana
+    inicio: string
+    planejadoMin?: number
+    duracaoMin?: number
+    realizadoMin?: number | null
+  }
+  campoMinutos: 'planejadoMin' | 'duracaoMin'
+  comRealizado: boolean
+}) {
+  const campo = (nome: string) => `${nome}-${sufixo}`
+  return (
+    <form className={styles.form} action={`/api/rotina/${etapa}`} method="post">
+      <input type="hidden" name="acao" value={bloco ? 'atualizar' : 'adicionar'} />
+      {bloco && <input type="hidden" name="id" value={bloco.id} />}
+      <label className={styles.label} htmlFor={campo('tipo')}>
+        Tipo
+      </label>
+      <select
+        className={styles.input}
+        id={campo('tipo')}
+        name="tipo"
+        defaultValue={bloco?.tipo}
+        required
+      >
+        {tipos.map((tipo) => (
+          <option key={tipo} value={tipo}>
+            {rotulos[tipo]}
+          </option>
+        ))}
+      </select>
+      <label className={styles.label} htmlFor={campo('diaSemana')}>
+        Dia da semana
+      </label>
+      <select
+        className={styles.input}
+        id={campo('diaSemana')}
+        name="diaSemana"
+        defaultValue={bloco?.diaSemana}
+        required
+      >
+        {DIAS_SEMANA.map((dia) => (
+          <option key={dia} value={dia}>
+            {ROTULOS_DIA[dia]}
+          </option>
+        ))}
+      </select>
+      <label className={styles.label} htmlFor={campo('inicio')}>
+        Horário de início
+      </label>
+      <input
+        className={styles.input}
+        id={campo('inicio')}
+        name="inicio"
+        type="time"
+        defaultValue={bloco?.inicio ?? ''}
+        required
+      />
+      <label className={styles.label} htmlFor={campo(campoMinutos)}>
+        {comRealizado ? 'Tempo planejado (min)' : 'Duração (min)'}
+      </label>
+      <input
+        className={styles.input}
+        id={campo(campoMinutos)}
+        name={campoMinutos}
+        type="number"
+        min={5}
+        step={5}
+        defaultValue={bloco?.[campoMinutos] ?? ''}
+        required
+      />
+      {comRealizado && (
+        <>
+          <label className={styles.label} htmlFor={campo('realizadoMin')}>
+            Tempo realizado (min)
+          </label>
+          <input
+            className={styles.input}
+            id={campo('realizadoMin')}
+            name="realizadoMin"
+            type="number"
+            min={0}
+            step={5}
+            defaultValue={bloco?.realizadoMin ?? ''}
+          />
+        </>
+      )}
+      <button className={styles.acao} type="submit">
+        {bloco ? 'Salvar alterações' : 'Adicionar bloco'}
+      </button>
+    </form>
+  )
+}
+
+function FormEstudo({ rotina }: { rotina: RotinaRecorrente }) {
+  const e = rotina.estudo
+  const totais = somatorioEstudo(e)
+  const comTempo = TIPOS_ESTUDO.filter(
+    (tipo) => totais[tipo].planejadoMin > 0 || totais[tipo].realizadoMin > 0
+  )
+  return (
+    <>
+      <form className={styles.form} action="/api/rotina/estudo" method="post">
+        <input type="hidden" name="acao" value="meta" />
+        <p className={styles.dica}>
+          Meta ajustável e de adoção gradual — a referência externa de 10h semanais não é imposta.
+          Vazia fica a confirmar.
+        </p>
+        <label className={styles.label} htmlFor="metaHoras">
+          Meta semanal de estudo (horas)
+        </label>
+        <input
+          className={styles.input}
+          id="metaHoras"
+          name="metaHoras"
+          type="number"
+          min={0.5}
+          step={0.5}
+          defaultValue={e?.metaSemanalMin != null ? e.metaSemanalMin / 60 : ''}
+        />
+        <button className={styles.acao} type="submit">
+          Salvar meta
+        </button>
+      </form>
+      {e === null && <p className={styles.dica}>A confirmar — adicione o primeiro bloco.</p>}
+      {e && e.blocos.length === 0 && <p className={styles.dica}>Nenhum registrado.</p>}
+      {e && comTempo.length > 0 && (
+        <ul className={styles.lista} aria-label="Tempo de estudo por tipo">
+          {comTempo.map((tipo) => (
+            <li key={tipo} className={styles.item}>
+              <span className={styles.itemTexto}>
+                {ROTULOS_TIPO_ESTUDO[tipo]}: {totais[tipo].planejadoMin} min planejados ·{' '}
+                {totais[tipo].realizadoMin} min realizados
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {e && e.blocos.length > 0 && (
+        <ul className={styles.lista}>
+          {e.blocos.map((b: BlocoEstudo) => (
+            <li key={b.id} className={styles.item}>
+              <span className={styles.itemTexto}>{resumoBlocoEstudo(b)}</span>
+              <details className={styles.edicao}>
+                <summary className={styles.label}>Editar</summary>
+                <FormBloco
+                  etapa="estudo"
+                  tipos={TIPOS_ESTUDO}
+                  rotulos={ROTULOS_TIPO_ESTUDO}
+                  sufixo={b.id}
+                  bloco={b}
+                  campoMinutos="planejadoMin"
+                  comRealizado
+                />
+              </details>
+              <FormRemover etapa="estudo" id={b.id} protegido={false} />
+            </li>
+          ))}
+        </ul>
+      )}
+      <h2 className={styles.subtitulo}>Adicionar bloco de estudo</h2>
+      <p className={styles.dica}>Blocos de estudo são flexíveis — não viram obrigação semanal.</p>
+      <FormBloco
+        etapa="estudo"
+        tipos={TIPOS_ESTUDO}
+        rotulos={ROTULOS_TIPO_ESTUDO}
+        sufixo="novo"
+        campoMinutos="planejadoMin"
+        comRealizado
+      />
+    </>
+  )
+}
+
+function FormMusica({ rotina }: { rotina: RotinaRecorrente }) {
+  const lista = rotina.musica
+  return (
+    <>
+      <p className={styles.dica}>
+        Blocos de música são objetivos flexíveis — não viram obrigação semanal.
+      </p>
+      {lista === null && <p className={styles.dica}>A confirmar — adicione o primeiro.</p>}
+      {lista && lista.length === 0 && <p className={styles.dica}>Nenhum registrado.</p>}
+      {lista && lista.length > 0 && (
+        <ul className={styles.lista}>
+          {lista.map((b: BlocoMusica) => (
+            <li key={b.id} className={styles.item}>
+              <span className={styles.itemTexto}>{resumoBlocoMusica(b)}</span>
+              <details className={styles.edicao}>
+                <summary className={styles.label}>Editar</summary>
+                <FormBloco
+                  etapa="musica"
+                  tipos={TIPOS_MUSICA}
+                  rotulos={ROTULOS_TIPO_MUSICA}
+                  sufixo={b.id}
+                  bloco={b}
+                  campoMinutos="duracaoMin"
+                  comRealizado={false}
+                />
+              </details>
+              <FormRemover etapa="musica" id={b.id} protegido={false} />
+            </li>
+          ))}
+        </ul>
+      )}
+      <h2 className={styles.subtitulo}>Adicionar bloco de música</h2>
+      <FormBloco
+        etapa="musica"
+        tipos={TIPOS_MUSICA}
+        rotulos={ROTULOS_TIPO_MUSICA}
+        sufixo="novo"
+        campoMinutos="duracaoMin"
+        comRealizado={false}
+      />
+    </>
+  )
+}
+
 const FORMULARIOS: Record<Etapa, (rotina: RotinaRecorrente) => React.ReactNode> = {
   trabalho: (rotina) => <FormTrabalho rotina={rotina} />,
   presencial: (rotina) => <FormPresencial rotina={rotina} />,
   compromissos: (rotina) => <FormCompromissos rotina={rotina} />,
   periodos: (rotina) => <FormPeriodos rotina={rotina} />,
   sono: (rotina) => <FormSono rotina={rotina} />,
+  alimentacao: (rotina) => <FormAlimentacao rotina={rotina} />,
+  estudo: (rotina) => <FormEstudo rotina={rotina} />,
+  musica: (rotina) => <FormMusica rotina={rotina} />,
   preferencias: (rotina) => <FormPreferencias rotina={rotina} />,
 }
 

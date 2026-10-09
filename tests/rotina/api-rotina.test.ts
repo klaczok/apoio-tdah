@@ -3,7 +3,13 @@
 import { POST } from '@/app/api/rotina/[etapa]/route'
 import { getStateStore } from '@/server/persistence'
 import { estadoVazio } from '@/server/persistence/estado'
-import { acrescentarCompromisso, rotinaVazia } from '@/server/rotina/modelo'
+import {
+  acrescentarBlocoEstudo,
+  acrescentarBlocoMusica,
+  acrescentarCompromisso,
+  rotinaVazia,
+  type RotinaRecorrente,
+} from '@/server/rotina/modelo'
 
 process.env.PERSISTENCE_DRIVER = 'memory'
 
@@ -133,6 +139,178 @@ describe('POST /api/rotina/:etapa', () => {
   it('etapa desconhecida responde 404 sem gravar nada', async () => {
     const resposta = await requisicao('nada', { campo: 'x' })
     expect(resposta.status).toBe(404)
+  })
+
+  it('salva alimentação com horários editados e ocultação individual', async () => {
+    const resposta = await requisicao('alimentacao', {
+      'horario-cafe-da-manha': '08:45',
+      'horario-almoco': '12:30',
+      'horario-lanche-da-tarde': '16:00',
+      'horario-jantar': '20:30',
+      'oculta-lanche-da-tarde': 'on',
+      dias: ['seg', 'qua', 'qui', 'sex'],
+    })
+
+    expect(resposta.status).toBe(303)
+    expect(resposta.headers.get('location')).toBe('/configurar/estudo')
+    const alimentacao = (await estadoAtual()).rotina.alimentacao
+    expect(alimentacao?.refeicoes).toEqual([
+      { ref: 'cafe-da-manha', horario: '08:45', oculta: false },
+      { ref: 'almoco', horario: '12:30', oculta: false },
+      { ref: 'lanche-da-tarde', horario: '16:00', oculta: true },
+      { ref: 'jantar', horario: '20:30', oculta: false },
+    ])
+    expect(alimentacao?.diasTreino).toEqual(['seg', 'qua', 'qui', 'sex'])
+  })
+
+  it('dias de treino não informados permanecem a confirmar', async () => {
+    await requisicao('alimentacao', {
+      'horario-cafe-da-manha': '09:00',
+      'horario-almoco': '12:30',
+      'horario-lanche-da-tarde': '16:00',
+      'horario-jantar': '20:30',
+    })
+
+    expect((await estadoAtual()).rotina.alimentacao?.diasTreino).toBeNull()
+  })
+
+  it('permite registrar explicitamente que não há dias de treino', async () => {
+    await requisicao('alimentacao', {
+      'horario-cafe-da-manha': '09:00',
+      'horario-almoco': '12:30',
+      'horario-lanche-da-tarde': '16:00',
+      'horario-jantar': '20:30',
+      semTreino: 'on',
+    })
+
+    expect((await estadoAtual()).rotina.alimentacao?.diasTreino).toEqual([])
+  })
+
+  it('define a meta semanal de estudo em horas convertidas', async () => {
+    const resposta = await requisicao('estudo', { acao: 'meta', metaHoras: '4' })
+
+    expect(resposta.headers.get('location')).toBe('/configurar/estudo?salvo=1')
+    expect((await estadoAtual()).rotina.estudo?.metaSemanalMin).toBe(240)
+  })
+
+  it('adiciona bloco de estudo com planejado e realizado separados', async () => {
+    const resposta = await requisicao('estudo', {
+      acao: 'adicionar',
+      tipo: 'laboratorio-case',
+      diaSemana: 'sab',
+      inicio: '10:00',
+      planejadoMin: '90',
+      realizadoMin: '45',
+    })
+
+    expect(resposta.headers.get('location')).toBe('/configurar/estudo?salvo=1')
+    const bloco = (await estadoAtual()).rotina.estudo?.blocos[0]
+    expect(bloco).toMatchObject({
+      tipo: 'laboratorio-case',
+      planejadoMin: 90,
+      realizadoMin: 45,
+    })
+  })
+
+  it('rejeita bloco de estudo fora das categorias previstas', async () => {
+    const store = await getStateStore()
+    const carregado = await store.load()
+    if (!carregado.ok) throw new Error('store indisponível')
+    await store.save(estadoVazio(), carregado.value.version)
+
+    const resposta = await requisicao('estudo', {
+      acao: 'adicionar',
+      tipo: 'prova',
+      diaSemana: 'seg',
+      inicio: '19:00',
+      planejadoMin: '60',
+    })
+
+    expect(resposta.headers.get('location')).toBe('/configurar/estudo?erro=entrada')
+    expect((await estadoAtual()).rotina.estudo).toBeNull()
+  })
+
+  it('edita e remove bloco de estudo pela API', async () => {
+    let rotina: RotinaRecorrente = acrescentarBlocoEstudo(rotinaVazia(), {
+      tipo: 'teoria',
+      diaSemana: 'seg',
+      inicio: '19:00',
+      planejadoMin: 60,
+      realizadoMin: null,
+    })
+    const store = await getStateStore()
+    const carregado = await store.load()
+    if (!carregado.ok) throw new Error('store indisponível')
+    await store.save({ ...estadoVazio(), rotina }, carregado.value.version)
+    const id = rotina.estudo!.blocos[0].id
+
+    const edicao = await requisicao('estudo', {
+      acao: 'atualizar',
+      id,
+      tipo: 'revisao',
+      diaSemana: 'ter',
+      inicio: '20:00',
+      planejadoMin: '45',
+      realizadoMin: '45',
+    })
+    expect(edicao.headers.get('location')).toBe('/configurar/estudo?salvo=1')
+    expect((await estadoAtual()).rotina.estudo?.blocos[0]).toMatchObject({
+      id,
+      tipo: 'revisao',
+      realizadoMin: 45,
+    })
+
+    const remocao = await requisicao('estudo', { acao: 'remover', id })
+    expect(remocao.headers.get('location')).toBe('/configurar/estudo?salvo=1')
+    expect((await estadoAtual()).rotina.estudo?.blocos).toEqual([])
+  })
+
+  it('adiciona e remove bloco de música por tipo', async () => {
+    const resposta = await requisicao('musica', {
+      acao: 'adicionar',
+      tipo: 'violino',
+      diaSemana: 'dom',
+      inicio: '11:00',
+      duracaoMin: '45',
+    })
+
+    expect(resposta.headers.get('location')).toBe('/configurar/musica?salvo=1')
+    const bloco = (await estadoAtual()).rotina.musica?.[0]
+    expect(bloco).toMatchObject({ tipo: 'violino', duracaoMin: 45 })
+
+    const remocao = await requisicao('musica', { acao: 'remover', id: bloco!.id })
+    expect(remocao.headers.get('location')).toBe('/configurar/musica?salvo=1')
+    expect((await estadoAtual()).rotina.musica).toEqual([])
+  })
+
+  it('rejeita bloco de música com tipo fora da lista', async () => {
+    const resposta = await requisicao('musica', {
+      acao: 'adicionar',
+      tipo: 'show',
+      diaSemana: 'dom',
+      inicio: '11:00',
+      duracaoMin: '45',
+    })
+
+    expect(resposta.headers.get('location')).toBe('/configurar/musica?erro=entrada')
+  })
+
+  it('remove bloco de música salvo sem exigir confirmação', async () => {
+    const rotina = acrescentarBlocoMusica(rotinaVazia(), {
+      tipo: 'composicao',
+      diaSemana: 'sab',
+      inicio: '15:00',
+      duracaoMin: 60,
+    })
+    const store = await getStateStore()
+    const carregado = await store.load()
+    if (!carregado.ok) throw new Error('store indisponível')
+    await store.save({ ...estadoVazio(), rotina }, carregado.value.version)
+    const id = rotina.musica![0].id
+
+    const resposta = await requisicao('musica', { acao: 'remover', id })
+    expect(resposta.headers.get('location')).toBe('/configurar/musica?salvo=1')
+    expect((await estadoAtual()).rotina.musica).toEqual([])
   })
 
   it('remoção de id inexistente informa ausência em vez de formato inválido', async () => {
