@@ -5,7 +5,8 @@ import { getStateStore } from '@/server/persistence'
 import { estadoVazio } from '@/server/persistence/estado'
 import { gerarPropostaSemanal } from '@/server/proposta/gerar'
 import { confirmarProposta } from '@/server/proposta/modelo'
-import { dataCivilAmanha, diaSemanaDe } from '@/server/tempo'
+import { gerarInstanciaDiaria } from '@/server/dia/gerar'
+import { dataCivilAmanha, dataCivilHoje, diaSemanaDe } from '@/server/tempo'
 import {
   acrescentarCompromisso,
   definirSono,
@@ -352,5 +353,93 @@ describe('POST /api/dia', () => {
     expect(atual.tarefas).toHaveLength(3)
     expect(atual.tarefas.filter((t) => t.origemId === tarefa.id)).toHaveLength(2)
     expect(atual.notaDia).toBe('Dia cheio')
+  })
+})
+
+describe('POST /api/dia — revisão', () => {
+  async function comDiaHoje() {
+    const hoje = dataCivilHoje()
+    await comSemanaConfirmada((r) =>
+      acrescentarCompromisso(r, {
+        titulo: 'Consulta',
+        diaSemana: diaSemanaDe(hoje),
+        inicio: '10:00',
+        duracaoMin: 30,
+        categoria: 'saude',
+        tipo: 'fixo',
+      })
+    )
+    const store = await getStateStore()
+    const lido = await store.load()
+    if (!lido.ok) throw new Error('store indisponível no teste')
+    const instancia = gerarInstanciaDiaria(
+      lido.value.dados.semanaAtiva!,
+      lido.value.dados.rotina,
+      hoje,
+      lido.value.version
+    )
+    await store.save(
+      { ...lido.value.dados, dias: { ...lido.value.dados.dias, [hoje]: instancia } },
+      lido.value.version
+    )
+    return { hoje, instancia }
+  }
+
+  it('registra estado factual de um item do dia', async () => {
+    const { hoje, instancia } = await comDiaHoje()
+    const item = instancia.itens[0]
+
+    const resposta = await requisicao({
+      acao: 'revisar-item',
+      data: hoje,
+      id: item.id,
+      estado: 'parcial',
+    })
+
+    expect(resposta.headers.get('location')).toBe('/hoje?estado=1')
+    const atual = (await estadoAtual()).dados.dias[hoje]
+    expect(atual.revisao.estados[item.id]).toBe('parcial')
+    expect(atual.itens.find((i) => i.id === item.id)!.inicio).toBe(item.inicio)
+  })
+
+  it('estado fora do conjunto devolve erro de entrada', async () => {
+    const { hoje, instancia } = await comDiaHoje()
+
+    const resposta = await requisicao({
+      acao: 'revisar-item',
+      data: hoje,
+      id: instancia.itens[0].id,
+      estado: 'pulado',
+    })
+
+    expect(resposta.headers.get('location')).toMatch(/erro=entrada|erro=dados/)
+  })
+
+  it('conclui a revisão sem campos reflexivos e persiste', async () => {
+    const { hoje } = await comDiaHoje()
+
+    const resposta = await requisicao({ acao: 'revisar-concluir', data: hoje })
+
+    expect(resposta.headers.get('location')).toBe('/hoje?revisado=1')
+    expect((await estadoAtual()).dados.dias[hoje].revisao.concluidaEm).not.toBeNull()
+  })
+
+  it('persiste energia, sobrecarga, motivo e nota opcionais', async () => {
+    const { hoje } = await comDiaHoje()
+
+    await requisicao({
+      acao: 'revisar-concluir',
+      data: hoje,
+      energia: 'alta',
+      sobrecarga: 'leve',
+      motivo: 'chuva',
+      nota: 'dia tranquilo',
+    })
+
+    const revisao = (await estadoAtual()).dados.dias[hoje].revisao
+    expect(revisao.energia).toBe('alta')
+    expect(revisao.sobrecarga).toBe('leve')
+    expect(revisao.motivo).toBe('chuva')
+    expect(revisao.nota).toBe('dia tranquilo')
   })
 })

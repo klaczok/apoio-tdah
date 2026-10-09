@@ -58,6 +58,39 @@ export type InstanciaDiaria = {
   prioridades: string[]
   tarefas: Tarefa[]
   notaDia: string | null
+  revisao: RevisaoDiaria
+}
+
+export const ESTADOS_REVISAO = ['realizado', 'parcial', 'reprogramado', 'descartado'] as const
+export type EstadoRevisao = (typeof ESTADOS_REVISAO)[number]
+
+export const ESCALAS_ENERGIA = ['baixa', 'ok', 'alta'] as const
+export type EnergiaRevisao = (typeof ESCALAS_ENERGIA)[number]
+
+export const ESCALAS_SOBRECARGA = ['leve', 'ok', 'pesada'] as const
+export type SobrecargaRevisao = (typeof ESCALAS_SOBRECARGA)[number]
+
+// Revisão noturna do dia: estados factuais por item/tarefa, escalas curtas e
+// campos reflexivos opcionais — sem pontuação, ranking ou interpretação
+// clínica. Ausência de estado é "sem registro", nunca uma falha implícita.
+export type RevisaoDiaria = {
+  estados: Record<string, EstadoRevisao>
+  energia: EnergiaRevisao | null
+  sobrecarga: SobrecargaRevisao | null
+  motivo: string | null
+  nota: string | null
+  concluidaEm: string | null
+}
+
+export function revisaoVazia(): RevisaoDiaria {
+  return {
+    estados: {},
+    energia: null,
+    sobrecarga: null,
+    motivo: null,
+    nota: null,
+    concluidaEm: null,
+  }
 }
 
 export const LIMITE_PRIORIDADES = 3
@@ -128,6 +161,7 @@ export function validarInstancia(raw: unknown): InstanciaDiaria {
     prioridades,
     tarefas,
     notaDia,
+    revisao,
   } = raw
   if (typeof data !== 'string' || !ehDataCivil(data)) {
     throw new SchemaInvalidoError('data da instância inválida')
@@ -164,6 +198,71 @@ export function validarInstancia(raw: unknown): InstanciaDiaria {
     prioridades: pris,
     tarefas: tarefasValidadas,
     notaDia: validarNotaDia(notaDia ?? null),
+    revisao: validarRevisao(revisao),
+  }
+}
+
+export function ehEstadoRevisao(valor: string): valor is EstadoRevisao {
+  return (ESTADOS_REVISAO as readonly string[]).includes(valor)
+}
+
+export function ehEnergiaRevisao(valor: string): valor is EnergiaRevisao {
+  return (ESCALAS_ENERGIA as readonly string[]).includes(valor)
+}
+
+export function ehSobrecargaRevisao(valor: string): valor is SobrecargaRevisao {
+  return (ESCALAS_SOBRECARGA as readonly string[]).includes(valor)
+}
+
+function validarRevisao(raw: unknown): RevisaoDiaria {
+  if (raw === undefined || raw === null) return revisaoVazia()
+  if (!ehObjeto(raw)) throw new SchemaInvalidoError('revisão não é um objeto')
+  const { estados, energia, sobrecarga, motivo, nota, concluidaEm } = raw
+  const mapa: Record<string, EstadoRevisao> = {}
+  if (estados !== undefined && estados !== null) {
+    if (!ehObjeto(estados)) throw new SchemaInvalidoError('estados da revisão inválidos')
+    for (const [id, estado] of Object.entries(estados)) {
+      if (typeof estado !== 'string' || !ehEstadoRevisao(estado)) {
+        throw new SchemaInvalidoError('estado de revisão inválido')
+      }
+      mapa[id] = estado
+    }
+  }
+  if (
+    energia !== undefined &&
+    energia !== null &&
+    !(typeof energia === 'string' && (ESCALAS_ENERGIA as readonly string[]).includes(energia))
+  ) {
+    throw new SchemaInvalidoError('energia fora da escala')
+  }
+  if (
+    sobrecarga !== undefined &&
+    sobrecarga !== null &&
+    !(
+      typeof sobrecarga === 'string' &&
+      (ESCALAS_SOBRECARGA as readonly string[]).includes(sobrecarga)
+    )
+  ) {
+    throw new SchemaInvalidoError('sobrecarga fora da escala')
+  }
+  for (const [campo, valor] of [
+    ['motivo', motivo],
+    ['nota', nota],
+  ] as const) {
+    if (valor !== undefined && valor !== null && typeof valor !== 'string') {
+      throw new SchemaInvalidoError(`${campo} da revisão inválido`)
+    }
+  }
+  if (concluidaEm !== undefined && concluidaEm !== null && typeof concluidaEm !== 'string') {
+    throw new SchemaInvalidoError('conclusão da revisão inválida')
+  }
+  return {
+    estados: mapa,
+    energia: (energia ?? null) as EnergiaRevisao | null,
+    sobrecarga: (sobrecarga ?? null) as SobrecargaRevisao | null,
+    motivo: (motivo ?? null) as string | null,
+    nota: (nota ?? null) as string | null,
+    concluidaEm: (concluidaEm ?? null) as string | null,
   }
 }
 
@@ -447,4 +546,86 @@ export function dividirTarefa(
 export function anotarDia(instancia: InstanciaDiaria, nota: string): InstanciaDiaria {
   exigirRascunho(instancia)
   return { ...instancia, notaDia: validarNotaDia(nota) }
+}
+
+// A revisão registra o que aconteceu — não é edição do plano, então vale
+// também depois do dia confirmado. `estado` null limpa o registro do item:
+// ausência de estado permanece "sem registro", nunca falha implícita.
+// Revisão concluída é imutável — não existe fluxo de correção por enquanto.
+export function registrarEstado(
+  instancia: InstanciaDiaria,
+  id: string,
+  estado: EstadoRevisao | null
+): InstanciaDiaria {
+  if (instancia.revisao.concluidaEm) {
+    throw new SchemaInvalidoError('revisão já concluída')
+  }
+  const existe =
+    instancia.itens.some((i) => i.id === id) || instancia.tarefas.some((t) => t.id === id)
+  if (!existe) throw new ItemNaoEncontradoError('item não encontrado')
+  if (estado !== null && !ehEstadoRevisao(estado)) {
+    throw new SchemaInvalidoError('estado de revisão inválido')
+  }
+  const estados = { ...instancia.revisao.estados }
+  if (estado === null) {
+    delete estados[id]
+  } else {
+    estados[id] = estado
+  }
+  return { ...instancia, revisao: { ...instancia.revisao, estados } }
+}
+
+// Concluir a revisão só exige o gesto do usuário — energia, sobrecarga,
+// motivo e nota são opcionais e escalas ficam limitadas às opções curtas.
+export function concluirRevisao(
+  instancia: InstanciaDiaria,
+  campos: {
+    energia?: EnergiaRevisao | null
+    sobrecarga?: SobrecargaRevisao | null
+    motivo?: string | null
+    nota?: string | null
+  },
+  agora = new Date()
+): InstanciaDiaria {
+  if (instancia.revisao.concluidaEm) {
+    throw new SchemaInvalidoError('revisão já concluída')
+  }
+  // Campo omitido preserva o valor atual; string vazia/null limpa.
+  const revisao = validarRevisao({
+    ...instancia.revisao,
+    energia: campos.energia === undefined ? instancia.revisao.energia : campos.energia,
+    sobrecarga: campos.sobrecarga === undefined ? instancia.revisao.sobrecarga : campos.sobrecarga,
+    motivo: campos.motivo === undefined ? instancia.revisao.motivo : campos.motivo,
+    nota: campos.nota === undefined ? instancia.revisao.nota : campos.nota,
+    concluidaEm: agora.toISOString(),
+  })
+  return { ...instancia, revisao }
+}
+
+// Síntese factual: conta estados declarados, inclui "sem registro" para o
+// que ficou sem marcação e não emite julgamento, nota ou ranking.
+export function sinteseRevisao(instancia: InstanciaDiaria): string {
+  const ids = [...instancia.itens.map((i) => i.id), ...instancia.tarefas.map((t) => t.id)]
+  const contagem: Record<EstadoRevisao | 'semRegistro', number> = {
+    realizado: 0,
+    parcial: 0,
+    reprogramado: 0,
+    descartado: 0,
+    semRegistro: 0,
+  }
+  for (const id of ids) {
+    const estado = instancia.revisao.estados[id]
+    if (estado) contagem[estado] += 1
+    else contagem.semRegistro += 1
+  }
+  const plural = (n: number, singular: string, plurais: string) =>
+    `${n} ${n === 1 ? singular : plurais}`
+  const partes = [
+    plural(contagem.realizado, 'realizado', 'realizados'),
+    plural(contagem.parcial, 'parcial', 'parciais'),
+    plural(contagem.reprogramado, 'reprogramado', 'reprogramados'),
+    plural(contagem.descartado, 'descartado', 'descartados'),
+    `${contagem.semRegistro} sem registro`,
+  ]
+  return `De ${ids.length} itens: ${partes.join(' · ')}.`
 }
