@@ -41,5 +41,4 @@ jobs:
       - name: Smoke test
         env:
           PREVIEW_URL: ${{ steps.deploy.outputs.url }}
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: ./scripts/smoke.sh "$PREVIEW_URL"
