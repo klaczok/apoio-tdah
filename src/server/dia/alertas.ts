@@ -1,4 +1,4 @@
-import { horaParaMinutos } from '../tempo'
+import { horaParaMinutos, minutosParaTexto } from '../tempo'
 import type { PreferenciaCarga, RotinaRecorrente } from '../rotina/modelo'
 import type { InstanciaDiaria, ItemDia } from './modelo'
 
@@ -25,12 +25,6 @@ const CARGA_REFERENCIA_DIA: Record<PreferenciaCarga, number> = {
   leve: 8 * 60,
   equilibrada: 10 * 60,
   intensa: 12 * 60,
-}
-
-function minutosParaTexto(min: number): string {
-  if (min % 60 === 0) return `${min / 60}h`
-  if (min > 60) return `${Math.floor(min / 60)}h${String(min % 60).padStart(2, '0')}`
-  return `${min}min`
 }
 
 // Itens do plano e tarefas agendadas disputam os mesmos horários — os

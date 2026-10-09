@@ -1,6 +1,12 @@
 import { randomUUID } from 'crypto'
 import { SchemaInvalidoError } from '../persistence/schema-error'
-import { dataCivilHoje, ehDataCivil, horaParaMinutos, minutosParaHora } from '../tempo'
+import {
+  dataCivilHoje,
+  ehDataCivil,
+  horaParaMinutos,
+  minutosParaHora,
+  somarDiasCivil,
+} from '../tempo'
 import type { OrigemSugestao, ProtecaoSugestao } from '../proposta/modelo'
 import { ehOrigem } from '../proposta/modelo'
 import {
@@ -443,9 +449,15 @@ export function ajustarItem(
   confirmarProtegido = false
 ): InstanciaDiaria {
   exigirRascunho(instancia)
-  const alvo = instancia.itens.find((i) => i.id === id)
+  // Vale para itens do plano e para tarefas — inclusive as que chegaram
+  // por troca de dia, que também precisam poder ser movidas/reduzidas.
+  const alvoItem = instancia.itens.find((i) => i.id === id)
+  const alvoTarefa = alvoItem ? undefined : instancia.tarefas.find((t) => t.id === id)
+  const alvo = alvoItem ?? alvoTarefa
   if (!alvo) throw new ItemNaoEncontradoError('item não encontrado')
-  if (alvo.protecao === 'fixo' && !confirmarProtegido) throw new ConfirmacaoFixoError()
+  if (alvoItem?.protecao === 'fixo' && !confirmarProtegido) {
+    throw new ConfirmacaoFixoError()
+  }
 
   let inicio = entrada.inicio === undefined ? alvo.inicio : entrada.inicio
   let fim = entrada.fim === undefined ? alvo.fim : entrada.fim
@@ -458,6 +470,12 @@ export function ajustarItem(
   }
   validarHorario(inicio, fim)
 
+  if (alvoTarefa) {
+    return {
+      ...instancia,
+      tarefas: instancia.tarefas.map((t) => (t.id === id ? { ...t, inicio, fim } : t)),
+    }
+  }
   return {
     ...instancia,
     itens: instancia.itens.map((i) => (i.id === id ? { ...i, inicio, fim } : i)),
@@ -705,11 +723,12 @@ export function decidirPendencia(
   const item =
     instancia.itens.find((i) => i.id === id) ?? instancia.tarefas.find((t) => t.id === id)
   if (!item) throw new ItemNaoEncontradoError('item não encontrado')
-  // Destino é decisão sobre o que ficou pendente — item concluído
-  // (realizado ou descartado) não aceita destino.
+  // Destino é decisão sobre o que ficou pendente: só itens marcados como
+  // parcial ou reprogramado. Item realizado/descartado está concluído e
+  // item sem marcação é "sem registro", não pendência.
   const estadoItem = instancia.revisao.estados[id]
-  if (estadoItem === 'realizado' || estadoItem === 'descartado') {
-    throw new SchemaInvalidoError('item concluído não aceita destino')
+  if (estadoItem !== 'parcial' && estadoItem !== 'reprogramado') {
+    throw new SchemaInvalidoError('só pendência marcada aceita destino')
   }
   if (!ehDestinoPendencia(entrada.tipo)) {
     throw new SchemaInvalidoError('destino de pendência inválido')
@@ -744,15 +763,22 @@ export function decidirPendencia(
   if (entrada.tipo === 'trocar-dia') {
     if (!entrada.confirmar) throw new ConfirmacaoDestinoError()
     const destino = entrada.destino?.trim()
-    // O destino precisa ser posterior ao dia revisado e não pode ser um
-    // dia que já passou — pendência vai para um dia planejável.
+    // O destino precisa ser posterior ao dia revisado, não pode ser um
+    // dia que já passou e fica dentro da janela de uma semana — pendência
+    // vai para um dia planejável, não para uma data solta.
     if (
       !destino ||
       !ehDataCivil(destino) ||
       destino <= instancia.data ||
-      destino < dataCivilHoje(agora)
+      destino < dataCivilHoje(agora) ||
+      destino > somarDiasCivil(instancia.data, 7)
     ) {
       throw new SchemaInvalidoError('trocar de dia exige uma data futura de destino')
+    }
+    // Repetir a troca só vale para o mesmo destino já decidido — um
+    // destino diferente deixaria uma cópia órfã no dia anterior.
+    if (anterior && anterior.destino !== destino) {
+      throw new SchemaInvalidoError('pendência já tem destino decidido')
     }
     decisao.destino = destino
   }

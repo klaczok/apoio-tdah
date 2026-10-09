@@ -212,3 +212,20 @@
   font-size: 0.95rem;
   color: var(--color-accent);
 }
+
+.tagFixo,
+.tagFlexivel {
+  display: inline-block;
+  padding: 0 var(--space-xs);
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+.tagFixo {
+  font-weight: 600;
+  border: 1px solid currentColor;
+}
+
+.tagFlexivel {
+  opacity: 0.8;
+}

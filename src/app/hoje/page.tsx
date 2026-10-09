@@ -271,14 +271,14 @@ export default async function HojePage({ searchParams }: Props) {
                   <li key={item.id}>
                     {item.titulo}
                     <FormEstado instancia={instancia} id={item.id} />
-                    {instancia.revisao.estados[item.id] !== 'realizado' &&
-                      instancia.revisao.estados[item.id] !== 'descartado' && (
-                        <FormDestino
-                          instancia={instancia}
-                          id={item.id}
-                          dias={carregado.ok ? carregado.value.dados.dias : {}}
-                        />
-                      )}
+                    {(instancia.revisao.estados[item.id] === 'parcial' ||
+                      instancia.revisao.estados[item.id] === 'reprogramado') && (
+                      <FormDestino
+                        instancia={instancia}
+                        id={item.id}
+                        dias={carregado.ok ? carregado.value.dados.dias : {}}
+                      />
+                    )}
                   </li>
                 ))}
               </ul>
@@ -378,6 +378,8 @@ export default async function HojePage({ searchParams }: Props) {
       </form>
 
       <Link href="/amanha">Planejar amanhã</Link>
+
+      <Link href="/semana">Ver a semana</Link>
 
       <Link href="/proposta">Proposta da semana</Link>
 

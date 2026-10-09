@@ -51,6 +51,20 @@ export function horaParaMinutos(hora: string): number {
   return hh * 60 + mm
 }
 
+// Intervalo de horário para exibição; ausência de dado fica explícita.
+export function horarioParaTexto(inicio: string | null, fim: string | null): string {
+  if (!inicio) return 'a confirmar'
+  if (!fim) return `${inicio} · duração a confirmar`
+  return `${inicio}–${fim}`
+}
+
+// Duração em texto curto para a UI: "45min", "8h", "8h30".
+export function minutosParaTexto(min: number): string {
+  if (min % 60 === 0) return `${min / 60}h`
+  if (min > 60) return `${Math.floor(min / 60)}h${String(min % 60).padStart(2, '0')}`
+  return `${min}min`
+}
+
 export function minutosParaHora(minutos: number): string {
   const clamp = Math.max(0, Math.min(1439, Math.round(minutos)))
   const hh = String(Math.floor(clamp / 60)).padStart(2, '0')

@@ -25,13 +25,20 @@ import {
   substituirPrioridade,
 } from '@/server/dia/modelo'
 import { ehCategoria, ItemNaoEncontradoError, type Categoria } from '@/server/rotina/modelo'
-import { dataCivilAmanha, dataCivilHoje, ehDataCivil } from '@/server/tempo'
+import { dataCivilAmanha, dataCivilHoje, ehDataCivil, somarDiasCivil } from '@/server/tempo'
 import { atualizarDia, type DiaAtual, type DiaNovo } from '@/server/usecases/dia'
 import type { PersistenceResult } from '@/server/persistence/store'
 
 function textoOuNulo(form: FormData, campo: string): string | null {
   const valor = String(form.get(campo) ?? '').trim()
   return valor || null
+}
+
+// Quase toda ação mira uma data civil — parse e validação uma vez só.
+function dataDo(form: FormData): string {
+  const data = String(form.get('data') ?? '')
+  if (!ehDataCivil(data)) throw new SchemaInvalidoError('data inválida')
+  return data
 }
 
 // `depois` roda a escrita complementar após a atualização principal —
@@ -60,15 +67,23 @@ function aplicador(acao: string, form: FormData): Plano {
       }
     }
     case 'ajustar': {
-      const data = String(form.get('data') ?? '')
-      if (!ehDataCivil(data)) throw new SchemaInvalidoError('data inválida')
+      // Ajuste é ato de planejamento: só dias de hoje em diante, dentro da
+      // janela de uma semana, para não criar datas soltas no estado.
+      const hojeAgora = dataCivilHoje()
+      const data = dataDo(form)
+      if (data < hojeAgora || data > somarDiasCivil(hojeAgora, 7)) {
+        throw new SchemaInvalidoError('data inválida')
+      }
       return {
         data,
-        aplicar: ({ instancia }) => {
-          if (!instancia) throw new ItemNaoEncontradoError('dia não planejado')
+        aplicar: ({ instancia, rotina, semanaAtiva, versao }) => {
+          // Ajuste explícito materializa o dia se ele ainda só existe como
+          // projeção da semana ativa (visão /semana).
+          const alvo = instanciaDoDia(instancia, { semanaAtiva, rotina }, data, versao)
+          if (!alvo) throw new ItemNaoEncontradoError('dia não planejado')
           return {
             instancia: ajustarItem(
-              instancia,
+              alvo,
               id,
               {
                 inicio: form.has('inicio') ? textoOuNulo(form, 'inicio') : undefined,
@@ -81,9 +96,8 @@ function aplicador(acao: string, form: FormData): Plano {
       }
     }
     case 'confirmar': {
-      const data = String(form.get('data') ?? '')
+      const data = dataDo(form)
       const ciente = form.get('ciente') === 'on'
-      if (!ehDataCivil(data)) throw new SchemaInvalidoError('data inválida')
       return {
         data,
         aplicar: ({ instancia, rotina }) => {
@@ -97,8 +111,7 @@ function aplicador(acao: string, form: FormData): Plano {
       }
     }
     case 'promover': {
-      const data = String(form.get('data') ?? '')
-      if (!ehDataCivil(data)) throw new SchemaInvalidoError('data inválida')
+      const data = dataDo(form)
       return {
         data,
         aplicar: ({ instancia }) => {
@@ -108,8 +121,7 @@ function aplicador(acao: string, form: FormData): Plano {
       }
     }
     case 'despromover': {
-      const data = String(form.get('data') ?? '')
-      if (!ehDataCivil(data)) throw new SchemaInvalidoError('data inválida')
+      const data = dataDo(form)
       return {
         data,
         aplicar: ({ instancia }) => {
@@ -119,10 +131,9 @@ function aplicador(acao: string, form: FormData): Plano {
       }
     }
     case 'substituir': {
-      const data = String(form.get('data') ?? '')
+      const data = dataDo(form)
       const novo = String(form.get('novo') ?? '')
       const antigo = String(form.get('antigo') ?? '')
-      if (!ehDataCivil(data)) throw new SchemaInvalidoError('data inválida')
       return {
         data,
         aplicar: ({ instancia }) => {
@@ -132,8 +143,7 @@ function aplicador(acao: string, form: FormData): Plano {
       }
     }
     case 'tarefa-criar': {
-      const data = String(form.get('data') ?? '')
-      if (!ehDataCivil(data)) throw new SchemaInvalidoError('data inválida')
+      const data = dataDo(form)
       const titulo = String(form.get('titulo') ?? '').trim()
       const categoria = String(form.get('categoria') ?? '')
       if (!titulo || !ehCategoria(categoria)) {
@@ -156,8 +166,7 @@ function aplicador(acao: string, form: FormData): Plano {
       }
     }
     case 'tarefa-editar': {
-      const data = String(form.get('data') ?? '')
-      if (!ehDataCivil(data)) throw new SchemaInvalidoError('data inválida')
+      const data = dataDo(form)
       const categoria = String(form.get('categoria') ?? '')
       return {
         data,
@@ -176,8 +185,7 @@ function aplicador(acao: string, form: FormData): Plano {
       }
     }
     case 'tarefa-remover': {
-      const data = String(form.get('data') ?? '')
-      if (!ehDataCivil(data)) throw new SchemaInvalidoError('data inválida')
+      const data = dataDo(form)
       return {
         data,
         aplicar: ({ instancia }) => {
@@ -187,8 +195,7 @@ function aplicador(acao: string, form: FormData): Plano {
       }
     }
     case 'tarefa-dividir': {
-      const data = String(form.get('data') ?? '')
-      if (!ehDataCivil(data)) throw new SchemaInvalidoError('data inválida')
+      const data = dataDo(form)
       const partes = String(form.get('partes') ?? '')
         .split('\n')
         .map((p) => p.trim())
@@ -202,11 +209,9 @@ function aplicador(acao: string, form: FormData): Plano {
       }
     }
     case 'revisar-item': {
-      const data = String(form.get('data') ?? '')
+      const data = dataDo(form)
       // Revisão olha o que aconteceu — dias futuros não são revisáveis.
-      if (!ehDataCivil(data) || data > dataCivilHoje()) {
-        throw new SchemaInvalidoError('data inválida')
-      }
+      if (data > dataCivilHoje()) throw new SchemaInvalidoError('data inválida')
       const estado = String(form.get('estado') ?? '')
       if (estado !== '' && !ehEstadoRevisao(estado)) {
         throw new SchemaInvalidoError('estado de revisão inválido')
@@ -220,10 +225,8 @@ function aplicador(acao: string, form: FormData): Plano {
       }
     }
     case 'revisar-concluir': {
-      const data = String(form.get('data') ?? '')
-      if (!ehDataCivil(data) || data > dataCivilHoje()) {
-        throw new SchemaInvalidoError('data inválida')
-      }
+      const data = dataDo(form)
+      if (data > dataCivilHoje()) throw new SchemaInvalidoError('data inválida')
       const energia = textoOuNulo(form, 'energia')
       const sobrecarga = textoOuNulo(form, 'sobrecarga')
       if (energia !== null && !ehEnergiaRevisao(energia)) {
@@ -255,19 +258,18 @@ function aplicador(acao: string, form: FormData): Plano {
       }
     }
     case 'pendencia-prever': {
-      const data = String(form.get('data') ?? '')
+      const data = dataDo(form)
       const destino = String(form.get('destino') ?? '')
-      if (!ehDataCivil(data) || !ehDataCivil(destino) || destino <= data) {
+      // Mesma janela de revisão: o dia de origem já aconteceu ou é hoje.
+      if (data > dataCivilHoje() || !ehDataCivil(destino) || destino <= data) {
         throw new SchemaInvalidoError('data inválida')
       }
       // Não grava nada — só devolve a página com a prévia do destino.
       return { data, aplicar: () => ({}) }
     }
     case 'pendencia-decidir': {
-      const data = String(form.get('data') ?? '')
-      if (!ehDataCivil(data) || data > dataCivilHoje()) {
-        throw new SchemaInvalidoError('data inválida')
-      }
+      const data = dataDo(form)
+      if (data > dataCivilHoje()) throw new SchemaInvalidoError('data inválida')
       const tipo = String(form.get('tipo') ?? '')
       if (!ehDestinoPendencia(tipo)) {
         throw new SchemaInvalidoError('destino de pendência inválido')
@@ -330,8 +332,7 @@ function aplicador(acao: string, form: FormData): Plano {
       }
     }
     case 'nota-dia': {
-      const data = String(form.get('data') ?? '')
-      if (!ehDataCivil(data)) throw new SchemaInvalidoError('data inválida')
+      const data = dataDo(form)
       return {
         data,
         aplicar: ({ instancia }) => {
@@ -351,7 +352,10 @@ export async function POST(request: Request) {
 
   const acao = String(form.get('acao') ?? '')
   const revisao = acao.startsWith('revisar-') || acao.startsWith('pendencia-')
-  const pagina = revisao ? '/hoje' : '/amanha'
+  // `volta` devolve para a tela de origem — whitelist, nunca URL livre.
+  const volta = String(form.get('volta') ?? '')
+  const pagina =
+    volta === 'semana' ? '/semana' : volta === 'hoje' ? '/hoje' : revisao ? '/hoje' : '/amanha'
   let plano: ReturnType<typeof aplicador>
   try {
     plano = aplicador(acao, form)

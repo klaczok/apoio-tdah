@@ -8,11 +8,15 @@ import {
   dataHoraParaTexto,
   diaSemanaDe,
   horaParaMinutos,
+  horarioParaTexto,
   minutosParaHora,
+  minutosParaTexto,
 } from '@/server/tempo'
+import { minutosPorCategoria } from '@/server/dia/semana'
 import { CATEGORIAS, ROTULOS_CATEGORIA, ROTULOS_DIA, type Categoria } from '@/server/rotina/modelo'
 import type { InstanciaDiaria, ItemDia, Tarefa } from '@/server/dia/modelo'
 import { avaliarAlertas, type Alerta } from '@/server/dia/alertas'
+import { AjusteItem } from '../_components/ajuste-item'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,16 +28,6 @@ type Props = {
     erro?: string
     substituir?: string
   }>
-}
-
-function horario(item: { inicio: string | null; fim: string | null }): string {
-  return item.inicio && item.fim ? `${item.inicio}–${item.fim}` : 'a confirmar'
-}
-
-function formatarMinutos(min: number): string {
-  if (min % 60 === 0) return `${min / 60}h`
-  if (min > 60) return `${Math.floor(min / 60)}h${String(min % 60).padStart(2, '0')}`
-  return `${min}min`
 }
 
 type Lacuna = { inicio: number; fim: number }
@@ -60,52 +54,6 @@ function lacunasDoDia(instancia: InstanciaDiaria): Lacuna[] {
     livres.push({ inicio: cursor, fim: janelaFim })
   }
   return livres
-}
-
-function ConfirmacaoProtegido({ id }: { id: string }) {
-  return (
-    <label className={styles.opcao} htmlFor={`confirmar-${id}`}>
-      <input id={`confirmar-${id}`} type="checkbox" name="confirmar" />
-      Confirmo a alteração deste item protegido
-    </label>
-  )
-}
-
-function AcaoAjustar({ item, data }: { item: ItemDia; data: string }) {
-  return (
-    <details className={styles.edicao}>
-      <summary className={styles.secundaria}>Ajustar</summary>
-      <form className={styles.form} action="/api/dia" method="post">
-        <input type="hidden" name="acao" value="ajustar" />
-        <input type="hidden" name="data" value={data} />
-        <input type="hidden" name="id" value={item.id} />
-        <label className={styles.label} htmlFor={`inicio-${item.id}`}>
-          Início
-        </label>
-        <input
-          className={styles.input}
-          id={`inicio-${item.id}`}
-          name="inicio"
-          type="time"
-          defaultValue={item.inicio ?? ''}
-        />
-        <label className={styles.label} htmlFor={`fim-${item.id}`}>
-          Fim
-        </label>
-        <input
-          className={styles.input}
-          id={`fim-${item.id}`}
-          name="fim"
-          type="time"
-          defaultValue={item.fim ?? ''}
-        />
-        {item.protecao === 'fixo' && <ConfirmacaoProtegido id={item.id} />}
-        <button className={styles.acao} type="submit">
-          Salvar ajuste
-        </button>
-      </form>
-    </details>
-  )
 }
 
 function AcaoPrioridade({
@@ -146,7 +94,8 @@ function PrioridadesDoDia({ instancia }: { instancia: InstanciaDiaria }) {
         {itens.map((item) => (
           <li key={item.id} className={styles.item}>
             <span className={styles.itemTexto}>
-              {horario(item)} · {item.titulo} · {ROTULOS_CATEGORIA[item.categoria]}
+              {horarioParaTexto(item.inicio, item.fim)} · {item.titulo} ·{' '}
+              {ROTULOS_CATEGORIA[item.categoria]}
             </span>
           </li>
         ))}
@@ -183,7 +132,7 @@ function Substituicao({
         {atuais.map((item) => (
           <label key={item.id} className={styles.opcao} htmlFor={`antigo-${item.id}`}>
             <input id={`antigo-${item.id}`} type="radio" name="antigo" value={item.id} required />
-            {item.titulo} · {horario(item)}
+            {item.titulo} · {horarioParaTexto(item.inicio, item.fim)}
           </label>
         ))}
         <button className={styles.acao} type="submit">
@@ -231,7 +180,8 @@ function FixosDoDia({ instancia }: { instancia: InstanciaDiaria }) {
           {fixos.map((item) => (
             <li key={item.id} className={styles.item}>
               <span className={styles.itemTexto}>
-                {horario(item)} · {item.titulo} · {ROTULOS_CATEGORIA[item.categoria]}
+                {horarioParaTexto(item.inicio, item.fim)} · {item.titulo} ·{' '}
+                {ROTULOS_CATEGORIA[item.categoria]}
               </span>
             </li>
           ))}
@@ -274,26 +224,14 @@ function tarefaParaLinha(tarefa: Tarefa): ItemLinha {
   }
 }
 
-function horarioLinha(item: ItemLinha): string {
-  if (item.inicio && item.fim) return `${item.inicio}–${item.fim}`
-  if (item.inicio) return `${item.inicio} · duração a confirmar`
-  return 'a confirmar'
-}
-
 function CargaPorArea({ instancia }: { instancia: InstanciaDiaria }) {
-  const porCategoria = new Map<Categoria, number>()
-  for (const item of [...instancia.itens, ...instancia.tarefas]) {
-    if (item.inicio === null || item.fim === null) continue
-    const minutos = horaParaMinutos(item.fim) - horaParaMinutos(item.inicio)
-    porCategoria.set(item.categoria, (porCategoria.get(item.categoria) ?? 0) + minutos)
-  }
-  const trabalho = porCategoria.get('trabalho') ?? 0
-  const demais = [...porCategoria.entries()].filter(([c]) => c !== 'trabalho')
+  const porCategoria = minutosPorCategoria(instancia)
+  const demais = CATEGORIAS.filter((c) => c !== 'trabalho' && (porCategoria[c] ?? 0) > 0)
   return (
     <p className={styles.dica}>
-      Carga planejada — trabalho: {formatarMinutos(trabalho)}
+      Carga planejada — trabalho: {minutosParaTexto(porCategoria.trabalho ?? 0)}
       {demais.length > 0 &&
-        ` · ${demais.map(([c, m]) => `${ROTULOS_CATEGORIA[c]} ${formatarMinutos(m)}`).join(' · ')}`}
+        ` · ${demais.map((c) => `${ROTULOS_CATEGORIA[c]} ${minutosParaTexto(porCategoria[c] ?? 0)}`).join(' · ')}`}
     </p>
   )
 }
@@ -357,7 +295,8 @@ function LinhaDoTempo({ instancia, editavel }: { instancia: InstanciaDiaria; edi
           ) : (
             <li key={e.item.id} className={styles.item}>
               <span className={styles.itemTexto}>
-                {horarioLinha(e.item)} · {e.item.titulo} · {ROTULOS_CATEGORIA[e.item.categoria]} ·{' '}
+                {horarioParaTexto(e.item.inicio, e.item.fim)} · {e.item.titulo} ·{' '}
+                {ROTULOS_CATEGORIA[e.item.categoria]} ·{' '}
                 {e.item.plano === null
                   ? 'Tarefa'
                   : e.item.protecao === 'fixo'
@@ -367,7 +306,7 @@ function LinhaDoTempo({ instancia, editavel }: { instancia: InstanciaDiaria; edi
               </span>
               <p className={styles.dica}>{e.item.explicacao}</p>
               {editavel && e.item.plano !== null && (
-                <AcaoAjustar item={e.item.plano} data={instancia.data} />
+                <AjusteItem item={e.item.plano} data={instancia.data} />
               )}
               {editavel && (
                 <AcaoPrioridade
@@ -391,7 +330,7 @@ function LinhaDoTempo({ instancia, editavel }: { instancia: InstanciaDiaria; edi
                 </span>
                 <p className={styles.dica}>{item.explicacao}</p>
                 {editavel && item.plano !== null && (
-                  <AcaoAjustar item={item.plano} data={instancia.data} />
+                  <AjusteItem item={item.plano} data={instancia.data} />
                 )}
                 {editavel && (
                   <AcaoPrioridade
