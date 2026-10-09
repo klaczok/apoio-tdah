@@ -1,0 +1,214 @@
+import { render, screen } from '@testing-library/react'
+import AmanhaPage from '@/app/amanha/page'
+import { getStateStore } from '@/server/persistence'
+import { estadoVazio, type EstadoPrivado } from '@/server/persistence/estado'
+import { gerarInstanciaDiaria } from '@/server/dia/gerar'
+import { gerarPropostaSemanal } from '@/server/proposta/gerar'
+import { confirmarProposta } from '@/server/proposta/modelo'
+import { dataCivilAmanha, diaSemanaDe } from '@/server/tempo'
+import {
+  acrescentarCompromisso,
+  acrescentarPeriodo,
+  definirAlimentacao,
+  definirPreferencias,
+  definirPresencial,
+  definirSono,
+  definirTrabalho,
+  rotinaVazia,
+  type RotinaRecorrente,
+} from '@/server/rotina/modelo'
+
+process.env.PERSISTENCE_DRIVER = 'memory'
+
+async function gravar(dados: EstadoPrivado) {
+  const store = await getStateStore()
+  const carregado = await store.load()
+  if (!carregado.ok) throw new Error('store indisponível no teste')
+  await store.save(dados, carregado.value.version)
+}
+
+async function renderizar(params: Record<string, string> = {}) {
+  return render(await AmanhaPage({ searchParams: Promise.resolve(params) }))
+}
+
+function rotinaBase(): RotinaRecorrente {
+  let r = rotinaVazia()
+  r = definirSono(r, { dormir: '23:00', acordar: '07:00' })
+  r = definirTrabalho(r, {
+    diasSemana: [...new Set(['seg', 'ter', 'qua', 'qui', 'sex', diaSemanaDe(dataCivilAmanha())])],
+    horasPadrao: 8,
+    limiteExcepcional: 10,
+  })
+  return r
+}
+
+async function comDiaPlanejado(rotina?: RotinaRecorrente) {
+  const r = rotina ?? rotinaBase()
+  const semana = confirmarProposta(gerarPropostaSemanal(r), new Date('2026-10-12T12:00:00Z'))
+  const amanha = dataCivilAmanha()
+  const instancia = gerarInstanciaDiaria(semana, r, amanha, 3, new Date('2026-10-12T20:00:00Z'))
+  await gravar({
+    ...estadoVazio(),
+    rotina: r,
+    semanaAtiva: semana,
+    dias: { [amanha]: instancia },
+  })
+  return instancia
+}
+
+describe('Amanhã', () => {
+  it('sem semana ativa, orienta a confirmar a proposta primeiro', async () => {
+    await gravar({ ...estadoVazio(), rotina: rotinaBase() })
+
+    await renderizar()
+
+    expect(screen.getByRole('link', { name: /proposta/i })).toHaveAttribute('href', '/proposta')
+  })
+
+  it('com semana ativa e sem rascunho, oferece planejar amanhã', async () => {
+    const r = rotinaBase()
+    const semana = confirmarProposta(gerarPropostaSemanal(r), new Date('2026-10-12T12:00:00Z'))
+    await gravar({ ...estadoVazio(), rotina: r, semanaAtiva: semana })
+
+    await renderizar()
+
+    const planejar = screen.getByRole('button', { name: /planejar amanhã/i })
+    expect(planejar.closest('form')).toHaveAttribute('action', '/api/dia')
+  })
+
+  it('mostra a linha do tempo ordenada com contexto, categoria e explicações', async () => {
+    const amanha = dataCivilAmanha()
+    const r = acrescentarCompromisso(rotinaBase(), {
+      titulo: 'Terapia',
+      diaSemana: diaSemanaDe(amanha),
+      inicio: '18:00',
+      duracaoMin: 50,
+      categoria: 'saude',
+      tipo: 'fixo',
+    })
+    await comDiaPlanejado(r)
+
+    await renderizar()
+
+    expect(screen.getByText(/acordar 07:00/)).toBeInTheDocument()
+    expect(screen.getAllByText(/Terapia/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Saúde/).length).toBeGreaterThan(0)
+    // itens fixos aparecem antes de detalhes flexíveis na hierarquia textual
+    expect(screen.getAllByText(/Fixo/).length).toBeGreaterThan(0)
+  })
+
+  it('exibe espaços livres explicitamente na linha do tempo', async () => {
+    const amanha = dataCivilAmanha()
+    const r = acrescentarPeriodo(rotinaBase(), {
+      tipo: 'cuidado-familiar',
+      diaSemana: diaSemanaDe(amanha),
+      inicio: '18:00',
+      fim: '20:00',
+    })
+    await comDiaPlanejado(r)
+
+    await renderizar()
+
+    expect(screen.getAllByText(/livre/i).length).toBeGreaterThan(0)
+  })
+
+  it('separa itens sem horário da sequência cronológica', async () => {
+    const amanha = dataCivilAmanha()
+    const r = definirPresencial(rotinaBase(), {
+      diasSemana: [diaSemanaDe(amanha)],
+      chegadaLimite: null,
+      preparacaoMin: null,
+      deslocamentoMin: null,
+    })
+    await comDiaPlanejado(r)
+
+    await renderizar()
+
+    expect(screen.getByText(/sem horário/i)).toBeInTheDocument()
+    expect(screen.getByText(/saída a confirmar/i)).toBeInTheDocument()
+  })
+
+  it('exibe a saída recomendada em dia presencial', async () => {
+    const amanha = dataCivilAmanha()
+    const r = definirPresencial(rotinaBase(), {
+      diasSemana: [diaSemanaDe(amanha)],
+      chegadaLimite: '10:00',
+      preparacaoMin: 30,
+      deslocamentoMin: 40,
+    })
+    await comDiaPlanejado(r)
+
+    await renderizar()
+
+    expect(screen.getByText(/sair até 08:50/i)).toBeInTheDocument()
+  })
+
+  it('mostra a carga por área com trabalho separado das demais', async () => {
+    await comDiaPlanejado()
+
+    await renderizar()
+
+    expect(screen.getByText(/trabalho.*8h/i)).toBeInTheDocument()
+  })
+
+  it('mostra compromissos fixos em seção própria antes da linha do tempo', async () => {
+    const amanha = dataCivilAmanha()
+    const r = acrescentarCompromisso(rotinaBase(), {
+      titulo: 'Terapia',
+      diaSemana: diaSemanaDe(amanha),
+      inicio: '18:00',
+      duracaoMin: 50,
+      categoria: 'saude',
+      tipo: 'fixo',
+    })
+    await comDiaPlanejado(r)
+
+    await renderizar()
+
+    const secao = screen.getByRole('region', { name: /compromissos fixos/i })
+    expect(secao).toHaveTextContent('Terapia')
+    const posFixos = screen
+      .getByText('Compromissos fixos')
+      .compareDocumentPosition(screen.getByRole('list', { name: /linha do tempo/i }))
+    expect(posFixos & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('ajustar item fixo pede confirmação explícita na interface', async () => {
+    const amanha = dataCivilAmanha()
+    const r = acrescentarCompromisso(rotinaBase(), {
+      titulo: 'Terapia',
+      diaSemana: diaSemanaDe(amanha),
+      inicio: '18:00',
+      duracaoMin: 50,
+      categoria: 'saude',
+      tipo: 'fixo',
+    })
+    await comDiaPlanejado(r)
+
+    await renderizar()
+
+    const timeline = screen.getByRole('list', { name: /linha do tempo/i })
+    const terapiaItem = Array.from(timeline.querySelectorAll('li')).find((li) =>
+      li.textContent?.includes('Terapia')
+    )!
+    expect(terapiaItem.textContent).toMatch(/ajustar/i)
+    expect(terapiaItem.textContent).toMatch(/confirmo a alteração deste item protegido/i)
+  })
+
+  it('dia confirmado não oferece edição', async () => {
+    const instancia = await comDiaPlanejado()
+    const confirmada = { ...instancia, confirmadaEm: '2026-10-12T21:00:00.000Z' }
+    const store = await getStateStore()
+    const carregado = await store.load()
+    if (!carregado.ok) throw new Error('store indisponível')
+    await store.save(
+      { ...carregado.value.dados, dias: { [instancia.data]: confirmada } },
+      carregado.value.version
+    )
+
+    await renderizar()
+
+    expect(screen.queryByText(/ajustar/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/confirmad/i)).toBeInTheDocument()
+  })
+})

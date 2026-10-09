@@ -70,7 +70,7 @@ export async function POST(request: Request) {
   try {
     aplicar = aplicador(acao, form)
   } catch {
-    return redirecionar('/proposta?erro=entrada-invalida')
+    return redirecionar('/proposta?erro=entrada')
   }
 
   const store = await getStateStore()

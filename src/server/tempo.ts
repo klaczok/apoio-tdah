@@ -1,7 +1,20 @@
+import type { DiaSemana } from './rotina/modelo'
+
 const FUSO_PADRAO = 'America/Sao_Paulo'
 
 export function dataCivilHoje(now = new Date(), timeZone = FUSO_PADRAO): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone }).format(now)
+}
+
+export function dataCivilAmanha(now = new Date(), timeZone = FUSO_PADRAO): string {
+  const amanha = new Date(now.getTime() + 24 * 60 * 60 * 1000)
+  return dataCivilHoje(amanha, timeZone)
+}
+
+const ORDEM_JS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'] as const
+
+export function diaSemanaDe(dataCivil: string): DiaSemana {
+  return ORDEM_JS[new Date(`${dataCivil}T12:00:00Z`).getUTCDay()]
 }
 
 export function ehDataCivil(valor: string): boolean {
