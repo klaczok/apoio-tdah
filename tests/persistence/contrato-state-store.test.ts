@@ -8,7 +8,7 @@ import { estadoVazio, SCHEMA_VERSION, type EstadoPrivado } from '@/server/persis
 import { rotinaVazia } from '@/server/rotina/modelo'
 
 function dados(notasPorDia: Record<string, string>): EstadoPrivado {
-  return { notasPorDia, rotina: rotinaVazia() }
+  return { ...estadoVazio(), notasPorDia }
 }
 
 type Cenario = {
