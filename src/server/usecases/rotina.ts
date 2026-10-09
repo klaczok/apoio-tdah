@@ -1,6 +1,11 @@
 import { SchemaInvalidoError } from '../persistence/schema-error'
 import type { PersistenceResult, StateStore } from '../persistence/store'
-import { ConfirmacaoFixoError, validarRotina, type RotinaRecorrente } from '../rotina/modelo'
+import {
+  ConfirmacaoFixoError,
+  ItemNaoEncontradoError,
+  validarRotina,
+  type RotinaRecorrente,
+} from '../rotina/modelo'
 
 export async function atualizarRotina(
   store: StateStore,
@@ -15,6 +20,9 @@ export async function atualizarRotina(
   } catch (error) {
     if (error instanceof ConfirmacaoFixoError) {
       return { ok: false, error: { kind: 'confirmacao-necessaria', detalhe: error.message } }
+    }
+    if (error instanceof ItemNaoEncontradoError) {
+      return { ok: false, error: { kind: 'item-ausente', detalhe: error.message } }
     }
     return {
       ok: false,

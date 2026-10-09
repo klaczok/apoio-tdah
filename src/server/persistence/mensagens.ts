@@ -10,6 +10,8 @@ export function erroParaParam(error: PersistenceError): string {
       return 'entrada'
     case 'confirmacao-necessaria':
       return 'confirmacao'
+    case 'item-ausente':
+      return 'ausente'
     case 'armazenamento-indisponivel':
       return 'persistencia'
   }
@@ -20,5 +22,6 @@ export const MENSAGENS_ERRO: Record<string, string> = {
   dados: 'Os dados salvos estão em formato inesperado.',
   persistencia: 'Não foi possível salvar agora. Tente novamente.',
   entrada: 'Algum campo está em formato inválido. Revise e tente novamente.',
-  confirmacao: 'Este compromisso é fixo. Marque a confirmação para alterá-lo.',
+  confirmacao: 'Este item é protegido. Marque a confirmação para alterá-lo.',
+  ausente: 'Este item já não existe. Recarregue para ver a versão atual.',
 }

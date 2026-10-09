@@ -8,6 +8,13 @@ export class ConfirmacaoFixoError extends Error {
   }
 }
 
+export class ItemNaoEncontradoError extends Error {
+  constructor(detalhe: string) {
+    super(detalhe)
+    this.name = 'ItemNaoEncontradoError'
+  }
+}
+
 export const DIAS_SEMANA = ['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom'] as const
 export type DiaSemana = (typeof DIAS_SEMANA)[number]
 
@@ -146,7 +153,7 @@ function diasValidos(valor: unknown, campo: string): DiaSemana[] {
   if (!Array.isArray(valor) || valor.some((d) => typeof d !== 'string' || !ehDiaSemana(d))) {
     throw new SchemaInvalidoError(`${campo} contém dia inválido`)
   }
-  return valor as DiaSemana[]
+  return [...new Set(valor as DiaSemana[])]
 }
 
 function validarTrabalho(raw: unknown): TrabalhoConfig {
@@ -175,6 +182,26 @@ function validarPresencial(raw: unknown): PresencialConfig {
     preparacaoMin: minutosOuNulos(raw.preparacaoMin, 'presencial.preparacaoMin'),
     deslocamentoMin: minutosOuNulos(raw.deslocamentoMin, 'presencial.deslocamentoMin'),
   }
+}
+
+function validarSono(raw: unknown): SonoConfig {
+  if (!ehObjeto(raw)) throw new SchemaInvalidoError('sono inválido')
+  return {
+    dormir: horaOuNula(raw.dormir, 'sono.dormir'),
+    acordar: horaOuNula(raw.acordar, 'sono.acordar'),
+  }
+}
+
+function validarMargens(raw: unknown): MargensConfig {
+  if (!ehObjeto(raw)) throw new SchemaInvalidoError('margens inválidas')
+  return { transicaoMin: minutosOuNulos(raw.transicaoMin, 'margens.transicaoMin') }
+}
+
+function validarCarga(raw: unknown): PreferenciaCarga {
+  if (raw !== 'leve' && raw !== 'equilibrada' && raw !== 'intensa') {
+    throw new SchemaInvalidoError('preferência de carga inválida')
+  }
+  return raw
 }
 
 function validarCompromisso(raw: unknown): Compromisso {
@@ -226,26 +253,16 @@ export function definirPresencial(rotina: RotinaRecorrente, entrada: unknown): R
 }
 
 export function definirSono(rotina: RotinaRecorrente, entrada: unknown): RotinaRecorrente {
-  if (!ehObjeto(entrada)) throw new SchemaInvalidoError('sono inválido')
-  return {
-    ...rotina,
-    sono: {
-      dormir: horaOuNula(entrada.dormir, 'sono.dormir'),
-      acordar: horaOuNula(entrada.acordar, 'sono.acordar'),
-    },
-  }
+  return { ...rotina, sono: validarSono(entrada) }
 }
 
 export function definirPreferencias(rotina: RotinaRecorrente, entrada: unknown): RotinaRecorrente {
   if (!ehObjeto(entrada)) throw new SchemaInvalidoError('preferências inválidas')
-  const carga = entrada.preferenciaCarga
-  if (carga !== null && carga !== 'leve' && carga !== 'equilibrada' && carga !== 'intensa') {
-    throw new SchemaInvalidoError('preferência de carga inválida')
-  }
   return {
     ...rotina,
-    margens: { transicaoMin: minutosOuNulos(entrada.transicaoMin, 'margens.transicaoMin') },
-    preferenciaCarga: carga,
+    margens: validarMargens({ transicaoMin: entrada.transicaoMin }),
+    preferenciaCarga:
+      entrada.preferenciaCarga == null ? null : validarCarga(entrada.preferenciaCarga),
   }
 }
 
@@ -266,7 +283,7 @@ export function removerCompromisso(
 ): RotinaRecorrente {
   const lista = rotina.compromissos ?? []
   const alvo = lista.find((c) => c.id === id)
-  if (!alvo) throw new SchemaInvalidoError('compromisso não encontrado')
+  if (!alvo) throw new ItemNaoEncontradoError('compromisso não encontrado')
   if (alvo.tipo === 'fixo' && !confirmarFixo) throw new ConfirmacaoFixoError()
   return { ...rotina, compromissos: lista.filter((c) => c.id !== id) }
 }
@@ -278,14 +295,20 @@ export function acrescentarPeriodo(rotina: RotinaRecorrente, entrada: unknown): 
   return { ...rotina, periodos: [...(rotina.periodos ?? []), periodo] }
 }
 
-export function removerPeriodo(rotina: RotinaRecorrente, id: string): RotinaRecorrente {
+export function removerPeriodo(
+  rotina: RotinaRecorrente,
+  id: string,
+  confirmarProtegido: boolean
+): RotinaRecorrente {
   const lista = rotina.periodos ?? []
-  if (!lista.some((p) => p.id === id)) throw new SchemaInvalidoError('período não encontrado')
+  const alvo = lista.find((p) => p.id === id)
+  if (!alvo) throw new ItemNaoEncontradoError('período não encontrado')
+  if (alvo.tipo === 'cuidado-familiar' && !confirmarProtegido) throw new ConfirmacaoFixoError()
   return { ...rotina, periodos: lista.filter((p) => p.id !== id) }
 }
 
 function listaOuNula<T>(valor: unknown, campo: string, validar: (v: unknown) => T): T[] | null {
-  if (valor === null) return null
+  if (valor == null) return null
   if (!Array.isArray(valor)) throw new SchemaInvalidoError(`${campo} não é lista`)
   return valor.map(validar)
 }
@@ -294,31 +317,15 @@ export function validarRotina(raw: unknown): RotinaRecorrente {
   if (!ehObjeto(raw)) throw new SchemaInvalidoError('rotina não é um objeto')
 
   const nuloOu = <T>(campo: unknown, validar: (v: unknown) => T): T | null =>
-    campo === null ? null : validar(campo)
-
-  const sono = nuloOu(raw.sono, (s) => {
-    if (!ehObjeto(s)) throw new SchemaInvalidoError('sono inválido')
-    return {
-      dormir: horaOuNula(s.dormir, 'sono.dormir'),
-      acordar: horaOuNula(s.acordar, 'sono.acordar'),
-    }
-  })
-  const margens = nuloOu(raw.margens, (m) => {
-    if (!ehObjeto(m)) throw new SchemaInvalidoError('margens inválidas')
-    return { transicaoMin: minutosOuNulos(m.transicaoMin, 'margens.transicaoMin') }
-  })
-  const carga = raw.preferenciaCarga
-  if (carga !== null && carga !== 'leve' && carga !== 'equilibrada' && carga !== 'intensa') {
-    throw new SchemaInvalidoError('preferência de carga inválida')
-  }
+    campo == null ? null : validar(campo)
 
   return {
     trabalho: nuloOu(raw.trabalho, validarTrabalho),
     presencial: nuloOu(raw.presencial, validarPresencial),
     compromissos: listaOuNula(raw.compromissos, 'compromissos', validarCompromisso),
     periodos: listaOuNula(raw.periodos, 'periodos', validarPeriodo),
-    sono,
-    margens,
-    preferenciaCarga: carga,
+    sono: nuloOu(raw.sono, validarSono),
+    margens: nuloOu(raw.margens, validarMargens),
+    preferenciaCarga: nuloOu(raw.preferenciaCarga, validarCarga),
   }
 }

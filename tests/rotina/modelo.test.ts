@@ -2,6 +2,7 @@ import {
   acrescentarCompromisso,
   acrescentarPeriodo,
   ConfirmacaoFixoError,
+  ItemNaoEncontradoError,
   definirPresencial,
   definirPreferencias,
   definirSono,
@@ -50,6 +51,19 @@ describe('rotina recorrente — modelo', () => {
           ],
         })
       ).toThrow(SchemaInvalidoError)
+    })
+
+    it('trata seção ausente como a confirmar, não como schema inválido', () => {
+      const parcial = { trabalho: null }
+      expect(validarRotina(parcial)).toEqual(rotinaVazia())
+    })
+
+    it('deduplica dias repetidos na validação', () => {
+      const rotina = validarRotina({
+        ...rotinaVazia(),
+        trabalho: { diasSemana: ['seg', 'seg', 'qua'], horasPadrao: 8, limiteExcepcional: 10 },
+      })
+      expect(rotina.trabalho?.diasSemana).toEqual(['seg', 'qua'])
     })
   })
 
@@ -143,7 +157,7 @@ describe('rotina recorrente — modelo', () => {
 
     it('rejeita remoção de compromisso inexistente', () => {
       const rotina = acrescentarCompromisso(rotinaVazia(), entradaFixa)
-      expect(() => removerCompromisso(rotina, 'inexistente', true)).toThrow(SchemaInvalidoError)
+      expect(() => removerCompromisso(rotina, 'inexistente', true)).toThrow(ItemNaoEncontradoError)
     })
   })
 
@@ -155,10 +169,22 @@ describe('rotina recorrente — modelo', () => {
       expect(rotina.periodos?.[0]).toMatchObject(cuidado)
     })
 
-    it('remove período por id', () => {
-      let rotina = acrescentarPeriodo(rotinaVazia(), cuidado)
-      rotina = removerPeriodo(rotina, rotina.periodos![0].id)
+    it('remove período de indisponibilidade por id', () => {
+      let rotina = acrescentarPeriodo(rotinaVazia(), { ...cuidado, tipo: 'indisponibilidade' })
+      rotina = removerPeriodo(rotina, rotina.periodos![0].id, false)
       expect(rotina.periodos).toEqual([])
+    })
+
+    it('exige confirmação explícita para remover período de cuidado familiar', () => {
+      const rotina = acrescentarPeriodo(rotinaVazia(), cuidado)
+      const id = rotina.periodos![0].id
+      expect(() => removerPeriodo(rotina, id, false)).toThrow(ConfirmacaoFixoError)
+      expect(removerPeriodo(rotina, id, true).periodos).toEqual([])
+    })
+
+    it('rejeita remoção de período inexistente', () => {
+      const rotina = acrescentarPeriodo(rotinaVazia(), cuidado)
+      expect(() => removerPeriodo(rotina, 'inexistente', true)).toThrow(ItemNaoEncontradoError)
     })
   })
 

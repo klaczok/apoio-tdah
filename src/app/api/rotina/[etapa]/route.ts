@@ -1,3 +1,4 @@
+import { redirecionar } from '@/server/http'
 import { getStateStore } from '@/server/persistence'
 import { erroParaParam } from '@/server/persistence/mensagens'
 import { ehEtapa, ETAPAS_DE_LISTA, proximaEtapa, type Etapa } from '@/app/configurar/etapas'
@@ -13,10 +14,6 @@ import {
   type RotinaRecorrente,
 } from '@/server/rotina/modelo'
 import { atualizarRotina } from '@/server/usecases/rotina'
-
-function redirecionar(caminho: string): Response {
-  return new Response(null, { status: 303, headers: { location: caminho } })
-}
 
 function textoOuNulo(form: FormData, campo: string): string | null {
   const valor = String(form.get(campo) ?? '').trim()
@@ -65,7 +62,7 @@ function aplicador(etapa: Etapa, form: FormData): (rotina: RotinaRecorrente) => 
       const acao = form.get('acao')
       if (acao === 'remover') {
         const id = String(form.get('id') ?? '')
-        const confirmar = form.get('confirmarFixo') === 'on'
+        const confirmar = form.get('confirmar') === 'on'
         return (r) => removerCompromisso(r, id, confirmar)
       }
       return (r) =>
@@ -82,7 +79,8 @@ function aplicador(etapa: Etapa, form: FormData): (rotina: RotinaRecorrente) => 
       const acao = form.get('acao')
       if (acao === 'remover') {
         const id = String(form.get('id') ?? '')
-        return (r) => removerPeriodo(r, id)
+        const confirmar = form.get('confirmar') === 'on'
+        return (r) => removerPeriodo(r, id, confirmar)
       }
       return (r) =>
         acrescentarPeriodo(r, {
@@ -97,8 +95,11 @@ function aplicador(etapa: Etapa, form: FormData): (rotina: RotinaRecorrente) => 
 
 export async function POST(request: Request, contexto: { params: Promise<{ etapa: string }> }) {
   const { etapa } = await contexto.params
+  if (!ehEtapa(etapa)) {
+    return new Response(null, { status: 404 })
+  }
   const form = await request.formData().catch(() => null)
-  if (!form || !ehEtapa(etapa)) {
+  if (!form) {
     return redirecionar('/configurar')
   }
 

@@ -129,6 +129,24 @@ function FormPresencial({ rotina }: { rotina: RotinaRecorrente }) {
   )
 }
 
+function FormRemover({ etapa, id, protegido }: { etapa: Etapa; id: string; protegido: boolean }) {
+  return (
+    <form action={`/api/rotina/${etapa}`} method="post" className={styles.form}>
+      <input type="hidden" name="acao" value="remover" />
+      <input type="hidden" name="id" value={id} />
+      {protegido && (
+        <label className={styles.opcao} htmlFor={`confirmar-${id}`}>
+          <input id={`confirmar-${id}`} type="checkbox" name="confirmar" />
+          Confirmo a alteração deste item protegido
+        </label>
+      )}
+      <button className={styles.remover} type="submit">
+        Remover
+      </button>
+    </form>
+  )
+}
+
 function FormCompromissos({ rotina }: { rotina: RotinaRecorrente }) {
   const lista = rotina.compromissos
   return (
@@ -139,19 +157,7 @@ function FormCompromissos({ rotina }: { rotina: RotinaRecorrente }) {
           {lista.map((c) => (
             <li key={c.id} className={styles.item}>
               <span className={styles.itemTexto}>{resumoCompromisso(c)}</span>
-              <form action="/api/rotina/compromissos" method="post" className={styles.form}>
-                <input type="hidden" name="acao" value="remover" />
-                <input type="hidden" name="id" value={c.id} />
-                {c.tipo === 'fixo' && (
-                  <label className={styles.opcao} htmlFor={`confirmar-${c.id}`}>
-                    <input id={`confirmar-${c.id}`} type="checkbox" name="confirmarFixo" />
-                    Confirmo a alteração deste compromisso fixo
-                  </label>
-                )}
-                <button className={styles.remover} type="submit">
-                  Remover
-                </button>
-              </form>
+              <FormRemover etapa="compromissos" id={c.id} protegido={c.tipo === 'fixo'} />
             </li>
           ))}
         </ul>
@@ -231,13 +237,7 @@ function FormPeriodos({ rotina }: { rotina: RotinaRecorrente }) {
           {lista.map((p) => (
             <li key={p.id} className={styles.item}>
               <span className={styles.itemTexto}>{resumoPeriodo(p)}</span>
-              <form action="/api/rotina/periodos" method="post" className={styles.form}>
-                <input type="hidden" name="acao" value="remover" />
-                <input type="hidden" name="id" value={p.id} />
-                <button className={styles.remover} type="submit">
-                  Remover
-                </button>
-              </form>
+              <FormRemover etapa="periodos" id={p.id} protegido={p.tipo === 'cuidado-familiar'} />
             </li>
           ))}
         </ul>

@@ -114,7 +114,7 @@ describe('POST /api/rotina/:etapa', () => {
     const resposta = await requisicao('compromissos', {
       acao: 'remover',
       id,
-      confirmarFixo: 'on',
+      confirmar: 'on',
     })
 
     expect(resposta.headers.get('location')).toBe('/configurar/compromissos?salvo=1')
@@ -130,9 +130,13 @@ describe('POST /api/rotina/:etapa', () => {
     expect(resposta.headers.get('location')).toBe('/configurar/trabalho?erro=entrada')
   })
 
-  it('etapa desconhecida não grava nada', async () => {
+  it('etapa desconhecida responde 404 sem gravar nada', async () => {
     const resposta = await requisicao('nada', { campo: 'x' })
-    expect(resposta.status).toBe(303)
-    expect(resposta.headers.get('location')).toBe('/configurar')
+    expect(resposta.status).toBe(404)
+  })
+
+  it('remoção de id inexistente informa ausência em vez de formato inválido', async () => {
+    const resposta = await requisicao('periodos', { acao: 'remover', id: 'sumiu' })
+    expect(resposta.headers.get('location')).toBe('/configurar/periodos?erro=ausente')
   })
 })
