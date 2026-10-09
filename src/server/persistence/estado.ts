@@ -1,18 +1,23 @@
 import { ehDataCivil } from '../tempo'
 import { rotinaVazia, validarRotina, type RotinaRecorrente } from '../rotina/modelo'
+import { validarProposta, type PropostaSemanal } from '../proposta/modelo'
 import { SchemaInvalidoError } from './schema-error'
 
 export { SchemaInvalidoError }
 
-export const SCHEMA_VERSION = 3
+export const SCHEMA_VERSION = 4
 
 export type EstadoPrivado = {
   notasPorDia: Record<string, string>
   rotina: RotinaRecorrente
+  // propostaSemanal é o rascunho em edição; semanaAtiva é a versão confirmada
+  // que origina as instâncias diárias. Nenhuma muda a rotina recorrente.
+  propostaSemanal: PropostaSemanal | null
+  semanaAtiva: PropostaSemanal | null
 }
 
 export function estadoVazio(): EstadoPrivado {
-  return { notasPorDia: {}, rotina: rotinaVazia() }
+  return { notasPorDia: {}, rotina: rotinaVazia(), propostaSemanal: null, semanaAtiva: null }
 }
 
 function migrarDeV1(raw: unknown): unknown {
@@ -29,6 +34,13 @@ function migrarDeV2(raw: unknown): unknown {
   return raw
 }
 
+function migrarDeV3(raw: unknown): unknown {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    throw new SchemaInvalidoError('estado v3 não é um objeto')
+  }
+  return { ...(raw as Record<string, unknown>), propostaSemanal: null, semanaAtiva: null }
+}
+
 export function validarEstadoPrivado(raw: unknown, schemaVersion: number): EstadoPrivado {
   if (schemaVersion > SCHEMA_VERSION) {
     throw new SchemaInvalidoError(`versão de schema não suportada: ${schemaVersion}`)
@@ -36,11 +48,17 @@ export function validarEstadoPrivado(raw: unknown, schemaVersion: number): Estad
   let dados = raw
   if (schemaVersion === 1) dados = migrarDeV1(dados)
   if (schemaVersion === 2) dados = migrarDeV2(dados)
+  if (schemaVersion === 3) dados = migrarDeV3(dados)
 
   if (typeof dados !== 'object' || dados === null || Array.isArray(dados)) {
     throw new SchemaInvalidoError('estado não é um objeto')
   }
-  const { notasPorDia: notas, rotina } = dados as Record<string, unknown>
+  const {
+    notasPorDia: notas,
+    rotina,
+    propostaSemanal,
+    semanaAtiva,
+  } = dados as Record<string, unknown>
   if (typeof notas !== 'object' || notas === null || Array.isArray(notas)) {
     throw new SchemaInvalidoError('notasPorDia não é um mapa')
   }
@@ -55,5 +73,7 @@ export function validarEstadoPrivado(raw: unknown, schemaVersion: number): Estad
   return {
     notasPorDia: notas as Record<string, string>,
     rotina: validarRotina(rotina),
+    propostaSemanal: propostaSemanal == null ? null : validarProposta(propostaSemanal),
+    semanaAtiva: semanaAtiva == null ? null : validarProposta(semanaAtiva),
   }
 }

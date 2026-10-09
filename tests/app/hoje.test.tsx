@@ -1,8 +1,8 @@
 import { render, screen } from '@testing-library/react'
 import HojePage from '@/app/hoje/page'
 import { getStateStore } from '@/server/persistence'
+import { estadoVazio } from '@/server/persistence/estado'
 import { dataCivilHoje } from '@/server/tempo'
-import { rotinaVazia } from '@/server/rotina/modelo'
 
 process.env.PERSISTENCE_DRIVER = 'memory'
 
@@ -24,7 +24,7 @@ describe('Área privada', () => {
     const carregado = await store.load()
     if (!carregado.ok) throw new Error('store indisponível no teste')
     await store.save(
-      { notasPorDia: { [dataCivilHoje()]: 'levar documento' }, rotina: rotinaVazia() },
+      { ...estadoVazio(), notasPorDia: { [dataCivilHoje()]: 'levar documento' } },
       carregado.value.version
     )
 
