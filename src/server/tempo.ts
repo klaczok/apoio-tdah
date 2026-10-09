@@ -17,6 +17,13 @@ export function diaSemanaDe(dataCivil: string): DiaSemana {
   return ORDEM_JS[new Date(`${dataCivil}T12:00:00Z`).getUTCDay()]
 }
 
+// Soma dias a uma data civil sem depender de fuso — meio-dia UTC evita
+// viradas de horário de verão.
+export function somarDiasCivil(dataCivil: string, dias: number): string {
+  const base = new Date(`${dataCivil}T12:00:00Z`)
+  return new Date(base.getTime() + dias * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+}
+
 export function ehDataCivil(valor: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(valor)) return false
   const data = new Date(`${valor}T00:00:00Z`)

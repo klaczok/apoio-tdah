@@ -10,6 +10,8 @@ export function erroParaParam(error: PersistenceError): string {
       return 'entrada'
     case 'confirmacao-necessaria':
       return 'confirmacao'
+    case 'confirmacao-destino':
+      return 'confirmacao-destino'
     case 'item-ausente':
       return 'ausente'
     case 'prioridade-cheia':
@@ -30,4 +32,6 @@ export const MENSAGENS_ERRO: Record<string, string> = {
   ausente: 'Este item já não existe. Recarregue para ver a versão atual.',
   'prioridade-cheia': 'Já são três prioridades. Escolha qual substituir.',
   alerta: 'O dia tem alertas. Marque o reconhecimento para confirmar.',
+  'confirmacao-destino':
+    'Veja os conflitos e a capacidade do dia de destino e marque a confirmação para trocar.',
 }

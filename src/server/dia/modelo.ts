@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto'
 import { SchemaInvalidoError } from '../persistence/schema-error'
-import { ehDataCivil, horaParaMinutos, minutosParaHora } from '../tempo'
+import { dataCivilHoje, ehDataCivil, horaParaMinutos, minutosParaHora } from '../tempo'
 import type { OrigemSugestao, ProtecaoSugestao } from '../proposta/modelo'
 import { ehOrigem } from '../proposta/modelo'
 import {
@@ -75,6 +75,7 @@ export type SobrecargaRevisao = (typeof ESCALAS_SOBRECARGA)[number]
 // clínica. Ausência de estado é "sem registro", nunca uma falha implícita.
 export type RevisaoDiaria = {
   estados: Record<string, EstadoRevisao>
+  decisoes: Record<string, DecisaoPendencia>
   energia: EnergiaRevisao | null
   sobrecarga: SobrecargaRevisao | null
   motivo: string | null
@@ -85,6 +86,7 @@ export type RevisaoDiaria = {
 export function revisaoVazia(): RevisaoDiaria {
   return {
     estados: {},
+    decisoes: {},
     energia: null,
     sobrecarga: null,
     motivo: null,
@@ -93,12 +95,47 @@ export function revisaoVazia(): RevisaoDiaria {
   }
 }
 
+export const DESTINOS_PENDENCIA = [
+  'manter',
+  'reduzir',
+  'dividir',
+  'trocar-dia',
+  'descartar',
+] as const
+export type DestinoPendencia = (typeof DESTINOS_PENDENCIA)[number]
+
+export function ehDestinoPendencia(valor: string): valor is DestinoPendencia {
+  return (DESTINOS_PENDENCIA as readonly string[]).includes(valor)
+}
+
+// Decisão explícita sobre uma pendência, registrada na revisão do dia de
+// origem — nunca reagenda sozinha e nunca toca a rotina recorrente.
+export type DecisaoPendencia = {
+  tipo: DestinoPendencia
+  // Data civil de destino quando a decisão é trocar de dia.
+  destino: string | null
+  // Novo escopo ou duração declarado pelo usuário quando reduz.
+  escopo: string | null
+  // Títulos das partes geradas quando divide.
+  partes: string[]
+  registradaEm: string
+}
+
 export const LIMITE_PRIORIDADES = 3
 
 export class LimitePrioridadesError extends Error {
   constructor() {
     super('no máximo três prioridades')
     this.name = 'LimitePrioridadesError'
+  }
+}
+
+// Trocar de dia exige confirmação explícita depois de ver a prévia do
+// destino — erro próprio para não se confundir com a proteção de fixos.
+export class ConfirmacaoDestinoError extends Error {
+  constructor() {
+    super('trocar de dia exige confirmação explícita')
+    this.name = 'ConfirmacaoDestinoError'
   }
 }
 
@@ -217,7 +254,7 @@ export function ehSobrecargaRevisao(valor: string): valor is SobrecargaRevisao {
 function validarRevisao(raw: unknown): RevisaoDiaria {
   if (raw === undefined || raw === null) return revisaoVazia()
   if (!ehObjeto(raw)) throw new SchemaInvalidoError('revisão não é um objeto')
-  const { estados, energia, sobrecarga, motivo, nota, concluidaEm } = raw
+  const { estados, decisoes, energia, sobrecarga, motivo, nota, concluidaEm } = raw
   const mapa: Record<string, EstadoRevisao> = {}
   if (estados !== undefined && estados !== null) {
     if (!ehObjeto(estados)) throw new SchemaInvalidoError('estados da revisão inválidos')
@@ -228,21 +265,10 @@ function validarRevisao(raw: unknown): RevisaoDiaria {
       mapa[id] = estado
     }
   }
-  if (
-    energia !== undefined &&
-    energia !== null &&
-    !(typeof energia === 'string' && (ESCALAS_ENERGIA as readonly string[]).includes(energia))
-  ) {
+  if (energia !== undefined && energia !== null && !ehEnergiaRevisao(String(energia))) {
     throw new SchemaInvalidoError('energia fora da escala')
   }
-  if (
-    sobrecarga !== undefined &&
-    sobrecarga !== null &&
-    !(
-      typeof sobrecarga === 'string' &&
-      (ESCALAS_SOBRECARGA as readonly string[]).includes(sobrecarga)
-    )
-  ) {
+  if (sobrecarga !== undefined && sobrecarga !== null && !ehSobrecargaRevisao(String(sobrecarga))) {
     throw new SchemaInvalidoError('sobrecarga fora da escala')
   }
   for (const [campo, valor] of [
@@ -253,17 +279,64 @@ function validarRevisao(raw: unknown): RevisaoDiaria {
       throw new SchemaInvalidoError(`${campo} da revisão inválido`)
     }
   }
+  const mapaDecisoes: Record<string, DecisaoPendencia> = {}
+  if (decisoes !== undefined && decisoes !== null) {
+    if (!ehObjeto(decisoes)) throw new SchemaInvalidoError('decisões da revisão inválidas')
+    for (const [id, decisao] of Object.entries(decisoes)) {
+      mapaDecisoes[id] = validarDecisao(decisao)
+    }
+  }
   if (concluidaEm !== undefined && concluidaEm !== null && typeof concluidaEm !== 'string') {
     throw new SchemaInvalidoError('conclusão da revisão inválida')
   }
   return {
     estados: mapa,
+    decisoes: mapaDecisoes,
     energia: (energia ?? null) as EnergiaRevisao | null,
     sobrecarga: (sobrecarga ?? null) as SobrecargaRevisao | null,
     motivo: (motivo ?? null) as string | null,
     nota: (nota ?? null) as string | null,
     concluidaEm: (concluidaEm ?? null) as string | null,
   }
+}
+
+function validarDecisao(raw: unknown): DecisaoPendencia {
+  if (!ehObjeto(raw)) throw new SchemaInvalidoError('decisão não é um objeto')
+  const { tipo, destino, escopo, partes, registradaEm } = raw
+  if (typeof tipo !== 'string' || !ehDestinoPendencia(tipo)) {
+    throw new SchemaInvalidoError('destino de pendência inválido')
+  }
+  if (destino !== undefined && destino !== null && !ehDataCivil(String(destino))) {
+    throw new SchemaInvalidoError('destino da decisão inválido')
+  }
+  if (escopo !== undefined && escopo !== null && typeof escopo !== 'string') {
+    throw new SchemaInvalidoError('escopo da decisão inválido')
+  }
+  const lista = partes === undefined || partes === null ? [] : partes
+  if (!Array.isArray(lista) || lista.some((p) => typeof p !== 'string')) {
+    throw new SchemaInvalidoError('partes da decisão inválidas')
+  }
+  if (typeof registradaEm !== 'string' || !registradaEm) {
+    throw new SchemaInvalidoError('decisão sem registro de data')
+  }
+  const decisao = {
+    tipo,
+    destino: (destino ?? null) as string | null,
+    escopo: (escopo ?? null) as string | null,
+    partes: lista as string[],
+    registradaEm,
+  }
+  // Invariantes por tipo — a mesma exigência da entrada vale para o dado lido.
+  if (tipo === 'trocar-dia' && !decisao.destino) {
+    throw new SchemaInvalidoError('troca de dia sem destino')
+  }
+  if (tipo === 'reduzir' && !decisao.escopo) {
+    throw new SchemaInvalidoError('redução sem novo escopo')
+  }
+  if (tipo === 'dividir' && decisao.partes.length < 2) {
+    throw new SchemaInvalidoError('divisão sem partes suficientes')
+  }
+  return decisao
 }
 
 function validarTarefa(raw: unknown): Tarefa {
@@ -308,18 +381,14 @@ function validarTarefa(raw: unknown): Tarefa {
   }
 }
 
+// origemId é vínculo de rastreio, não chave estrangeira: pode apontar para
+// uma tarefa dividida, um item do plano ou um item que ficou em outro dia
+// (troca de dia) ou já removido (origem apagada mantém o rastro na parte).
 function validarTarefas(raw: unknown): Tarefa[] {
   if (!Array.isArray(raw)) {
     throw new SchemaInvalidoError('tarefas não é uma lista')
   }
-  const tarefas = raw.map(validarTarefa)
-  const ids = new Set(tarefas.map((t) => t.id))
-  for (const t of tarefas) {
-    if (t.origemId !== null && !ids.has(t.origemId)) {
-      throw new SchemaInvalidoError('parte de tarefa sem origem no dia')
-    }
-  }
-  return tarefas
+  return raw.map(validarTarefa)
 }
 
 function validarNotaDia(raw: unknown): string | null {
@@ -515,6 +584,31 @@ export function removerTarefa(
   }
 }
 
+// Partes de uma divisão (tarefa no rascunho ou pendência na revisão): novas
+// tarefas sem horário, com origemId apontando para o item de origem.
+function partesDe(
+  origem: { id: string; categoria: Categoria },
+  titulosPartes: string[],
+  agora: Date
+): Tarefa[] {
+  const titulos = titulosPartes.map((t) => t.trim()).filter((t) => t.length > 0)
+  if (titulos.length < 2) {
+    throw new SchemaInvalidoError('divisão precisa de pelo menos duas partes')
+  }
+  return titulos.map((titulo) =>
+    validarTarefa({
+      id: randomUUID(),
+      titulo,
+      categoria: origem.categoria,
+      inicio: null,
+      fim: null,
+      nota: null,
+      origemId: origem.id,
+      criadaEm: agora.toISOString(),
+    })
+  )
+}
+
 // Dividir cria partes novas apontando para a origem; a tarefa original fica
 // intacta (não é marcada como realizada — estado é assunto da revisão).
 export function dividirTarefa(
@@ -526,21 +620,7 @@ export function dividirTarefa(
   exigirRascunho(instancia)
   const alvo = instancia.tarefas.find((t) => t.id === id)
   if (!alvo) throw new ItemNaoEncontradoError('tarefa não encontrada')
-  const titulos = titulosPartes.map((t) => t.trim()).filter((t) => t.length > 0)
-  if (titulos.length < 2) {
-    throw new SchemaInvalidoError('divisão precisa de pelo menos duas partes')
-  }
-  const partes: Tarefa[] = titulos.map((titulo) => ({
-    id: randomUUID(),
-    titulo,
-    categoria: alvo.categoria,
-    inicio: null,
-    fim: null,
-    nota: null,
-    origemId: alvo.id,
-    criadaEm: agora.toISOString(),
-  }))
-  return { ...instancia, tarefas: [...instancia.tarefas, ...partes] }
+  return { ...instancia, tarefas: [...instancia.tarefas, ...partesDe(alvo, titulosPartes, agora)] }
 }
 
 export function anotarDia(instancia: InstanciaDiaria, nota: string): InstanciaDiaria {
@@ -600,6 +680,115 @@ export function concluirRevisao(
     concluidaEm: agora.toISOString(),
   })
   return { ...instancia, revisao }
+}
+
+// Registra o destino que o usuário escolheu para uma pendência do dia.
+// Nenhum destino é aplicado sem pedido explícito e nada é reagendado por
+// conta própria: manter só registra; dividir materializa as partes como
+// tarefas com origemId; trocar de dia só anota a decisão aqui — a chegada
+// da pendência no dia de destino é responsabilidade da camada de aplicação.
+export function decidirPendencia(
+  instancia: InstanciaDiaria,
+  id: string,
+  entrada: {
+    tipo: DestinoPendencia
+    destino?: string | null
+    escopo?: string | null
+    partes?: string[]
+    confirmar?: boolean
+  },
+  agora = new Date()
+): InstanciaDiaria {
+  if (instancia.revisao.concluidaEm) {
+    throw new SchemaInvalidoError('revisão já concluída')
+  }
+  const item =
+    instancia.itens.find((i) => i.id === id) ?? instancia.tarefas.find((t) => t.id === id)
+  if (!item) throw new ItemNaoEncontradoError('item não encontrado')
+  // Destino é decisão sobre o que ficou pendente — item concluído
+  // (realizado ou descartado) não aceita destino.
+  const estadoItem = instancia.revisao.estados[id]
+  if (estadoItem === 'realizado' || estadoItem === 'descartado') {
+    throw new SchemaInvalidoError('item concluído não aceita destino')
+  }
+  if (!ehDestinoPendencia(entrada.tipo)) {
+    throw new SchemaInvalidoError('destino de pendência inválido')
+  }
+  // Cada pendência recebe uma decisão só — reenvio de formulário não
+  // duplica partes nem cópias. A exceção é repetir "trocar de dia": se a
+  // chegada no destino falhou, o usuário pode confirmar de novo.
+  const anterior = instancia.revisao.decisoes[id]
+  if (anterior && !(anterior.tipo === 'trocar-dia' && entrada.tipo === 'trocar-dia')) {
+    throw new SchemaInvalidoError('pendência já tem destino decidido')
+  }
+
+  const decisao: DecisaoPendencia = {
+    tipo: entrada.tipo,
+    destino: null,
+    escopo: null,
+    partes: [],
+    registradaEm: agora.toISOString(),
+  }
+  let tarefas = instancia.tarefas
+
+  if (entrada.tipo === 'reduzir') {
+    const escopo = entrada.escopo?.trim()
+    if (!escopo) throw new SchemaInvalidoError('reduzir exige novo escopo ou duração')
+    decisao.escopo = escopo
+  }
+  if (entrada.tipo === 'dividir') {
+    const partes = partesDe(item, entrada.partes ?? [], agora)
+    decisao.partes = partes.map((p) => p.titulo)
+    tarefas = [...tarefas, ...partes]
+  }
+  if (entrada.tipo === 'trocar-dia') {
+    if (!entrada.confirmar) throw new ConfirmacaoDestinoError()
+    const destino = entrada.destino?.trim()
+    // O destino precisa ser posterior ao dia revisado e não pode ser um
+    // dia que já passou — pendência vai para um dia planejável.
+    if (
+      !destino ||
+      !ehDataCivil(destino) ||
+      destino <= instancia.data ||
+      destino < dataCivilHoje(agora)
+    ) {
+      throw new SchemaInvalidoError('trocar de dia exige uma data futura de destino')
+    }
+    decisao.destino = destino
+  }
+
+  return {
+    ...instancia,
+    tarefas,
+    revisao: {
+      ...instancia.revisao,
+      decisoes: { ...instancia.revisao.decisoes, [id]: decisao },
+    },
+  }
+}
+
+// Materializa no dia de destino a pendência que o usuário decidiu trocar:
+// chega como tarefa com origemId apontando para o item de origem. Vale para
+// instância já confirmada — a inclusão é decisão explícita da revisão.
+// Idempotente: se a tarefa já chegou (reenvio ou repetição da decisão),
+// o dia volta igual.
+export function incluirPendencia(
+  instancia: InstanciaDiaria,
+  item: Pick<ItemDia, 'id' | 'titulo' | 'categoria' | 'inicio' | 'fim'>,
+  agora = new Date()
+): InstanciaDiaria {
+  if (instancia.tarefas.some((t) => t.origemId === item.id)) return instancia
+  const tarefa = validarTarefa({
+    id: randomUUID(),
+    titulo: item.titulo,
+    categoria: item.categoria,
+    inicio: item.inicio,
+    fim: item.fim,
+    nota: null,
+    origemId: item.id,
+    criadaEm: agora.toISOString(),
+  })
+  return { ...instancia, tarefas: [...instancia.tarefas, tarefa] }
 }
 
 // Síntese factual: conta estados declarados, inclui "sem registro" para o

@@ -1,7 +1,7 @@
 import { SchemaInvalidoError } from '../persistence/schema-error'
 import type { PersistenceResult, StateStore } from '../persistence/store'
 import type { InstanciaDiaria } from '../dia/modelo'
-import { LimitePrioridadesError, validarInstancia } from '../dia/modelo'
+import { ConfirmacaoDestinoError, LimitePrioridadesError, validarInstancia } from '../dia/modelo'
 import { AlertasPendentesError } from '../dia/alertas'
 import {
   ConfirmacaoFixoError,
@@ -50,6 +50,9 @@ export async function atualizarDia(
   } catch (error) {
     if (error instanceof ConfirmacaoFixoError) {
       return { ok: false, error: { kind: 'confirmacao-necessaria', detalhe: error.message } }
+    }
+    if (error instanceof ConfirmacaoDestinoError) {
+      return { ok: false, error: { kind: 'confirmacao-destino', detalhe: error.message } }
     }
     if (error instanceof ItemNaoEncontradoError) {
       return { ok: false, error: { kind: 'item-ausente', detalhe: error.message } }

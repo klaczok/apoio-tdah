@@ -3,37 +3,48 @@ import { getStateStore } from '@/server/persistence'
 import { erroParaParam } from '@/server/persistence/mensagens'
 import { SchemaInvalidoError } from '@/server/persistence/schema-error'
 import { AlertasPendentesError, avaliarAlertas } from '@/server/dia/alertas'
-import { gerarInstanciaDiaria } from '@/server/dia/gerar'
+import { gerarInstanciaDiaria, instanciaDoDia } from '@/server/dia/gerar'
 import {
   adicionarTarefa,
   ajustarItem,
   anotarDia,
   concluirRevisao,
   confirmarDia,
+  decidirPendencia,
   dividirTarefa,
   editarTarefa,
+  ehDestinoPendencia,
   ehEnergiaRevisao,
   ehEstadoRevisao,
   ehSobrecargaRevisao,
+  incluirPendencia,
   promoverPrioridade,
   registrarEstado,
   removerPrioridade,
   removerTarefa,
   substituirPrioridade,
 } from '@/server/dia/modelo'
-import { ehCategoria, ItemNaoEncontradoError } from '@/server/rotina/modelo'
+import { ehCategoria, ItemNaoEncontradoError, type Categoria } from '@/server/rotina/modelo'
 import { dataCivilAmanha, dataCivilHoje, ehDataCivil } from '@/server/tempo'
 import { atualizarDia, type DiaAtual, type DiaNovo } from '@/server/usecases/dia'
+import type { PersistenceResult } from '@/server/persistence/store'
 
 function textoOuNulo(form: FormData, campo: string): string | null {
   const valor = String(form.get(campo) ?? '').trim()
   return valor || null
 }
 
-function aplicador(
-  acao: string,
-  form: FormData
-): { data: string; aplicar: (atual: DiaAtual) => DiaNovo } {
+// `depois` roda a escrita complementar após a atualização principal —
+// usada pela troca de dia, que materializa a pendência no dia de destino.
+type Plano = {
+  data: string
+  aplicar: (atual: DiaAtual) => DiaNovo
+  depois?: (
+    store: Awaited<ReturnType<typeof getStateStore>>
+  ) => Promise<PersistenceResult<unknown> | void>
+}
+
+function aplicador(acao: string, form: FormData): Plano {
   const id = String(form.get('id') ?? '')
   const confirmar = form.get('confirmar') === 'on'
   switch (acao) {
@@ -243,6 +254,81 @@ function aplicador(
         },
       }
     }
+    case 'pendencia-prever': {
+      const data = String(form.get('data') ?? '')
+      const destino = String(form.get('destino') ?? '')
+      if (!ehDataCivil(data) || !ehDataCivil(destino) || destino <= data) {
+        throw new SchemaInvalidoError('data inválida')
+      }
+      // Não grava nada — só devolve a página com a prévia do destino.
+      return { data, aplicar: () => ({}) }
+    }
+    case 'pendencia-decidir': {
+      const data = String(form.get('data') ?? '')
+      if (!ehDataCivil(data) || data > dataCivilHoje()) {
+        throw new SchemaInvalidoError('data inválida')
+      }
+      const tipo = String(form.get('tipo') ?? '')
+      if (!ehDestinoPendencia(tipo)) {
+        throw new SchemaInvalidoError('destino de pendência inválido')
+      }
+      const partes = String(form.get('partes') ?? '')
+        .split('\n')
+        .map((p) => p.trim())
+        .filter((p) => p.length > 0)
+      let movido: {
+        id: string
+        titulo: string
+        categoria: Categoria
+        inicio: string | null
+        fim: string | null
+      } | null = null
+      const destinoData = textoOuNulo(form, 'destino')
+      return {
+        data,
+        aplicar: ({ instancia }) => {
+          if (!instancia) throw new ItemNaoEncontradoError('dia não planejado')
+          const origem =
+            instancia.itens.find((i) => i.id === id) ?? instancia.tarefas.find((t) => t.id === id)
+          if (!origem) throw new ItemNaoEncontradoError('item não encontrado')
+          const proxima = decidirPendencia(
+            instancia,
+            id,
+            {
+              tipo,
+              destino: destinoData,
+              escopo: textoOuNulo(form, 'escopo'),
+              partes,
+              confirmar,
+            },
+            new Date()
+          )
+          if (tipo === 'trocar-dia') movido = origem
+          return { instancia: proxima }
+        },
+        depois:
+          tipo === 'trocar-dia' && destinoData
+            ? async (store) => {
+                const item = movido
+                if (!item) return
+                return atualizarDia(
+                  store,
+                  destinoData,
+                  ({ instancia, rotina, semanaAtiva, versao }) => {
+                    const alvo = instanciaDoDia(
+                      instancia,
+                      { semanaAtiva, rotina },
+                      destinoData,
+                      versao
+                    )
+                    if (!alvo) throw new ItemNaoEncontradoError('destino sem dia planejável')
+                    return { instancia: incluirPendencia(alvo, item) }
+                  }
+                )
+              }
+            : undefined,
+      }
+    }
     case 'nota-dia': {
       const data = String(form.get('data') ?? '')
       if (!ehDataCivil(data)) throw new SchemaInvalidoError('data inválida')
@@ -264,13 +350,13 @@ export async function POST(request: Request) {
   if (!form) return redirecionar('/amanha')
 
   const acao = String(form.get('acao') ?? '')
-  const revisao = acao.startsWith('revisar-')
-  const destino = revisao ? '/hoje' : '/amanha'
+  const revisao = acao.startsWith('revisar-') || acao.startsWith('pendencia-')
+  const pagina = revisao ? '/hoje' : '/amanha'
   let plano: ReturnType<typeof aplicador>
   try {
     plano = aplicador(acao, form)
   } catch {
-    return redirecionar(`${destino}?erro=entrada`)
+    return redirecionar(`${pagina}?erro=entrada`)
   }
 
   const store = await getStateStore()
@@ -282,11 +368,30 @@ export async function POST(request: Request) {
     if (resultado.error.kind === 'prioridade-cheia' && acao === 'promover') {
       return redirecionar(`/amanha?substituir=${encodeURIComponent(String(form.get('id') ?? ''))}`)
     }
-    return redirecionar(`${destino}?erro=${erroParaParam(resultado.error)}`)
+    return redirecionar(`${pagina}?erro=${erroParaParam(resultado.error)}`)
+  }
+
+  // A escrita do dia de destino pode falhar depois de a decisão já ter sido
+  // gravada — o erro é reportado em vez de deixar a pendência sumir.
+  if (plano.depois) {
+    try {
+      const complementar = await plano.depois(store)
+      if (complementar && !complementar.ok) {
+        return redirecionar(`${pagina}?erro=${erroParaParam(complementar.error)}`)
+      }
+    } catch {
+      return redirecionar(`${pagina}?erro=persistencia`)
+    }
   }
   if (acao === 'planejar') return redirecionar('/amanha?planejado=1')
   if (acao === 'confirmar') return redirecionar('/amanha?confirmado=1')
   if (acao === 'revisar-concluir') return redirecionar('/hoje?revisado=1')
   if (acao === 'revisar-item') return redirecionar('/hoje?estado=1')
-  return redirecionar(`${destino}?salvo=1`)
+  if (acao === 'pendencia-prever') {
+    return redirecionar(
+      `/hoje?prever=${encodeURIComponent(String(form.get('id') ?? ''))}&destino=${encodeURIComponent(String(form.get('destino') ?? ''))}`
+    )
+  }
+  if (acao === 'pendencia-decidir') return redirecionar('/hoje?decisao=1')
+  return redirecionar(`${pagina}?salvo=1`)
 }

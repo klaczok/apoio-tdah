@@ -6,6 +6,7 @@ export type PersistenceError =
   | { kind: 'armazenamento-indisponivel' }
   | { kind: 'entrada-invalida'; detalhe: string }
   | { kind: 'confirmacao-necessaria'; detalhe: string }
+  | { kind: 'confirmacao-destino'; detalhe: string }
   | { kind: 'item-ausente'; detalhe: string }
   | { kind: 'prioridade-cheia'; detalhe: string }
   | { kind: 'alerta-pendente'; detalhe: string }
