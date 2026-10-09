@@ -154,6 +154,32 @@ describe.each(cenarios)('contrato StateStore — $nome', ({ preparar }) => {
     }
   })
 
+  it('isola dados entre tabelas no mesmo banco — preview não vê produção', async () => {
+    const db: IMemoryDb = newDb()
+    const pool = new (db.adapters.createPg().Pool)() as unknown as Queryable
+    const producao = new PostgresStateStore(pool, 'estado_usuario')
+    const preview = new PostgresStateStore(pool, 'estado_usuario_preview')
+
+    await producao.save(dados({ '2026-10-09': 'dado de produção' }), 0)
+
+    const lidoPreview = await preview.load()
+    expect(lidoPreview.ok && lidoPreview.value.dados).toEqual(estadoVazio())
+
+    const lidoProducao = await producao.load()
+    expect(lidoProducao.ok && lidoProducao.value.dados.notasPorDia['2026-10-09']).toBe(
+      'dado de produção'
+    )
+  })
+
+  it('rejeita nome de tabela que não é identificador seguro', async () => {
+    const db: IMemoryDb = newDb()
+    const pool = new (db.adapters.createPg().Pool)() as unknown as Queryable
+
+    for (const nome of ['estado; DROP TABLE x', 'estado-usuario', '1tabela', '']) {
+      expect(() => new PostgresStateStore(pool, nome)).toThrow()
+    }
+  })
+
   it('não retorna hash de credencial nas leituras comuns', async () => {
     const { store } = await preparar()
     await store.save(dados({ '2026-10-09': 'nota' }), 0)
