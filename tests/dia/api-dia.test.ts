@@ -6,7 +6,7 @@ import { estadoVazio } from '@/server/persistence/estado'
 import { gerarPropostaSemanal } from '@/server/proposta/gerar'
 import { confirmarProposta } from '@/server/proposta/modelo'
 import { gerarInstanciaDiaria } from '@/server/dia/gerar'
-import { dataCivilAmanha, dataCivilHoje, diaSemanaDe } from '@/server/tempo'
+import { dataCivilAmanha, dataCivilHoje, diaSemanaDe, somarDiasCivil } from '@/server/tempo'
 import {
   acrescentarCompromisso,
   definirSono,
@@ -448,6 +448,7 @@ describe('POST /api/dia — destino das pendências', () => {
   it('manter registra a decisão sem reagendar nada', async () => {
     const { hoje, instancia } = await comDiaHoje()
     const item = instancia.itens[0]
+    await requisicao({ acao: 'revisar-item', data: hoje, id: item.id, estado: 'parcial' })
 
     const resposta = await requisicao({
       acao: 'pendencia-decidir',
@@ -467,11 +468,13 @@ describe('POST /api/dia — destino das pendências', () => {
   it('trocar de dia sem confirmação devolve pedido de confirmação', async () => {
     const { hoje, instancia } = await comDiaHoje()
     const amanha = dataCivilAmanha()
+    const item = instancia.itens[0]
+    await requisicao({ acao: 'revisar-item', data: hoje, id: item.id, estado: 'parcial' })
 
     const resposta = await requisicao({
       acao: 'pendencia-decidir',
       data: hoje,
-      id: instancia.itens[0].id,
+      id: item.id,
       tipo: 'trocar-dia',
       destino: amanha,
     })
@@ -530,6 +533,7 @@ describe('POST /api/dia — destino das pendências', () => {
     const { hoje, instancia } = await comDiaHoje()
     const item = instancia.itens[0]
     const amanha = dataCivilAmanha()
+    await requisicao({ acao: 'revisar-item', data: hoje, id: item.id, estado: 'reprogramado' })
 
     const resposta = await requisicao({
       acao: 'pendencia-decidir',
@@ -557,6 +561,7 @@ describe('POST /api/dia — destino das pendências', () => {
   it('dividir pendência cria partes rastreáveis vinculadas à origem', async () => {
     const { hoje, instancia } = await comDiaHoje()
     const item = instancia.itens[0]
+    await requisicao({ acao: 'revisar-item', data: hoje, id: item.id, estado: 'parcial' })
 
     await requisicao({
       acao: 'pendencia-decidir',
@@ -586,5 +591,112 @@ describe('POST /api/dia — destino das pendências', () => {
     expect(estado.dados.dias[hoje].revisao.concluidaEm).not.toBeNull()
     expect(estado.dados.dias[hoje].revisao.decisoes).toEqual({})
     expect(Object.keys(estado.dados.dias)).toEqual([hoje])
+  })
+})
+
+describe('POST /api/dia — visão da semana', () => {
+  it('ajustar com volta=semana devolve para /semana', async () => {
+    const { hoje, instancia } = await comDiaHoje()
+    const item = instancia.itens.find((i) => i.protecao === 'flexivel') ?? instancia.itens[0]
+
+    const resposta = await requisicao({
+      acao: 'ajustar',
+      data: hoje,
+      id: item.id,
+      inicio: '15:00',
+      fim: '16:00',
+      confirmar: 'on',
+      volta: 'semana',
+    })
+
+    expect(resposta.headers.get('location')).toBe('/semana?salvo=1')
+  })
+
+  it('ajustar em fixo sem confirmação volta com erro de confirmação em /semana', async () => {
+    const { hoje, instancia } = await comDiaHoje()
+    const fixo = instancia.itens.find((i) => i.protecao === 'fixo')!
+
+    const resposta = await requisicao({
+      acao: 'ajustar',
+      data: hoje,
+      id: fixo.id,
+      inicio: '15:00',
+      fim: '16:00',
+      volta: 'semana',
+    })
+
+    expect(resposta.headers.get('location')).toBe('/semana?erro=confirmacao')
+  })
+
+  it('ajustar cobre tarefas e rejeita dia já passado', async () => {
+    const { hoje, instancia } = await comDiaHoje()
+    await requisicao({
+      acao: 'tarefa-criar',
+      data: hoje,
+      titulo: 'Resolver pendência',
+      categoria: 'pessoal',
+    })
+    const comTarefa = (await estadoAtual()).dados.dias[hoje]
+    const tarefa = comTarefa.tarefas[0]
+
+    const ok = await requisicao({
+      acao: 'ajustar',
+      data: hoje,
+      id: tarefa.id,
+      inicio: '09:00',
+      fim: '09:30',
+      volta: 'semana',
+    })
+    expect(ok.headers.get('location')).toBe('/semana?salvo=1')
+    expect(
+      (await estadoAtual()).dados.dias[hoje].tarefas.find((t) => t.id === tarefa.id)?.inicio
+    ).toBe('09:00')
+
+    const passado = await requisicao({
+      acao: 'ajustar',
+      data: somarDiasCivil(hoje, -1),
+      id: instancia.itens[0].id,
+      inicio: '15:00',
+      volta: 'semana',
+    })
+    expect(passado.headers.get('location')).toBe('/semana?erro=entrada')
+  })
+
+  it('ajustar materializa dia projetado da semana ativa', async () => {
+    const hoje = dataCivilHoje()
+    await comSemanaConfirmada((r) =>
+      acrescentarCompromisso(r, {
+        titulo: 'Violino',
+        diaSemana: diaSemanaDe(hoje),
+        inicio: '18:00',
+        duracaoMin: 45,
+        categoria: 'musica',
+        tipo: 'flexivel',
+      })
+    )
+    // Nenhuma instância persistida ainda — o dia só existe como projeção.
+    expect((await estadoAtual()).dados.dias[hoje]).toBeUndefined()
+
+    const estado = await estadoAtual()
+    const projetado = gerarInstanciaDiaria(
+      estado.dados.semanaAtiva!,
+      estado.dados.rotina,
+      hoje,
+      estado.version
+    )
+    const item = projetado.itens.find((i) => i.titulo === 'Violino')!
+
+    const resposta = await requisicao({
+      acao: 'ajustar',
+      data: hoje,
+      id: item.id,
+      inicio: '19:00',
+      fim: '19:45',
+      volta: 'semana',
+    })
+
+    expect(resposta.headers.get('location')).toBe('/semana?salvo=1')
+    const salvo = (await estadoAtual()).dados.dias[hoje]
+    expect(salvo.itens.find((i) => i.id === item.id)?.inicio).toBe('19:00')
   })
 })

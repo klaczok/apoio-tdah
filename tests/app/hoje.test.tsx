@@ -13,6 +13,7 @@ import { gerarPropostaSemanal } from '@/server/proposta/gerar'
 import { confirmarProposta } from '@/server/proposta/modelo'
 import { acrescentarCompromisso, definirSono, rotinaVazia } from '@/server/rotina/modelo'
 import { dataCivilHoje, diaSemanaDe } from '@/server/tempo'
+import type { InstanciaDiaria } from '@/server/dia/modelo'
 
 process.env.PERSISTENCE_DRIVER = 'memory'
 
@@ -79,6 +80,26 @@ async function comDiaHoje() {
   return instancia
 }
 
+// Persiste a instância do dia — útil após marcar estados ou decisões.
+async function salvarDia(dia: InstanciaDiaria) {
+  const store = await getStateStore()
+  const lido = await store.load()
+  if (!lido.ok) throw new Error('store indisponível no teste')
+  await store.save(
+    { ...lido.value.dados, dias: { ...lido.value.dados.dias, [dia.data]: dia } },
+    lido.value.version
+  )
+}
+
+async function comDiaHojePendente() {
+  let instancia = await comDiaHoje()
+  for (const item of instancia.itens) {
+    instancia = registrarEstado(instancia, item.id, 'parcial')
+  }
+  await salvarDia(instancia)
+  return instancia
+}
+
 describe('revisão do dia', () => {
   it('lista os itens planejados com os quatro estados factuais', async () => {
     await comDiaHoje()
@@ -140,7 +161,7 @@ describe('revisão do dia', () => {
 
 describe('destino das pendências', () => {
   it('oferece os destinos para pendências sem pré-seleção', async () => {
-    const instancia = await comDiaHoje()
+    const instancia = await comDiaHojePendente()
 
     await renderizar()
 
@@ -162,16 +183,14 @@ describe('destino das pendências', () => {
     const instancia = await comDiaHoje()
     let dia = registrarEstado(instancia, instancia.itens[0].id, 'realizado')
     dia = adicionarTarefa(dia, { titulo: 'Pendência', categoria: 'pessoal' }, new Date())
+    dia = registrarEstado(dia, dia.tarefas[0].id, 'reprogramado')
     dia = decidirPendencia(
       dia,
       dia.tarefas[0].id,
       { tipo: 'trocar-dia', destino: '2026-10-14', confirmar: true },
       new Date('2026-10-13T20:00:00Z')
     )
-    const store = await getStateStore()
-    const lido = await store.load()
-    if (!lido.ok) throw new Error('store indisponível no teste')
-    await store.save({ ...lido.value.dados, dias: { [dataCivilHoje()]: dia } }, lido.value.version)
+    await salvarDia(dia)
 
     await renderizar()
 

@@ -19,6 +19,11 @@ import {
 
 const AGORA = new Date('2026-10-12T12:00:00Z')
 
+// Destino só existe para pendência marcada — o helper deixa isso explícito.
+function pendente(instancia: ReturnType<typeof instanciaBase>, id: string) {
+  return registrarEstado(instancia, id, 'parcial')
+}
+
 function instanciaBase() {
   const r = definirTrabalho(definirSono(rotinaVazia(), { dormir: '23:00', acordar: '07:00' }), {
     diasSemana: ['ter'],
@@ -30,8 +35,9 @@ function instanciaBase() {
 
 describe('destino das pendências', () => {
   it('oferece exatamente manter, reduzir, dividir, trocar de dia ou descartar', () => {
-    const base = instanciaBase()
-    const id = base.itens[0].id
+    const bruta = instanciaBase()
+    const id = bruta.itens[0].id
+    const base = pendente(bruta, id)
 
     expect(decidirPendencia(base, id, { tipo: 'manter' }, AGORA).revisao.decisoes[id].tipo).toBe(
       'manter'
@@ -51,15 +57,17 @@ describe('destino das pendências', () => {
   it('manter preserva a pendência sem nova data e sem mexer no item', () => {
     const base = instanciaBase()
     const item = base.itens[0]
-    const decidido = decidirPendencia(base, item.id, { tipo: 'manter' }, AGORA)
+    const marcada = pendente(base, item.id)
+    const decidido = decidirPendencia(marcada, item.id, { tipo: 'manter' }, AGORA)
 
     expect(decidido.revisao.decisoes[item.id].destino).toBeNull()
     expect(decidido.itens.find((i) => i.id === item.id)).toEqual(item)
   })
 
   it('reduzir exige novo escopo ou duração', () => {
-    const base = instanciaBase()
-    const id = base.itens[0].id
+    const bruta = instanciaBase()
+    const id = bruta.itens[0].id
+    const base = pendente(bruta, id)
 
     expect(() => decidirPendencia(base, id, { tipo: 'reduzir' }, AGORA)).toThrow(
       SchemaInvalidoError
@@ -70,8 +78,9 @@ describe('destino das pendências', () => {
   })
 
   it('dividir exige pelo menos duas partes e as cria rastreáveis', () => {
-    const base = instanciaBase()
-    const id = base.itens[0].id
+    const bruta = instanciaBase()
+    const id = bruta.itens[0].id
+    const base = pendente(bruta, id)
 
     expect(() =>
       decidirPendencia(base, id, { tipo: 'dividir', partes: ['só uma'] }, AGORA)
@@ -86,8 +95,9 @@ describe('destino das pendências', () => {
   })
 
   it('trocar de dia exige confirmação, destino válido e futuro', () => {
-    const base = instanciaBase()
-    const id = base.itens[0].id
+    const bruta = instanciaBase()
+    const id = bruta.itens[0].id
+    const base = pendente(bruta, id)
 
     // Sem confirmar a prévia do destino, a decisão não é registrada.
     expect(() =>
@@ -108,6 +118,15 @@ describe('destino das pendências', () => {
         AGORA
       )
     ).toThrow(SchemaInvalidoError)
+    // Destino fora da janela de uma semana não é aceito — sem datas soltas.
+    expect(() =>
+      decidirPendencia(
+        base,
+        id,
+        { tipo: 'trocar-dia', destino: '2026-10-25', confirmar: true },
+        AGORA
+      )
+    ).toThrow(SchemaInvalidoError)
 
     const trocado = decidirPendencia(
       base,
@@ -119,8 +138,9 @@ describe('destino das pendências', () => {
   })
 
   it('decisão não é sobrescrita — reenvio não duplica partes nem cópias', () => {
-    const base = instanciaBase()
-    const id = base.itens[0].id
+    const bruta = instanciaBase()
+    const id = bruta.itens[0].id
+    const base = pendente(bruta, id)
     const decidido = decidirPendencia(base, id, { tipo: 'dividir', partes: ['A', 'B'] }, AGORA)
 
     expect(() => decidirPendencia(decidido, id, { tipo: 'descartar' }, AGORA)).toThrow(
@@ -137,12 +157,22 @@ describe('destino das pendências', () => {
   })
 
   it('repetir troca de dia é permitida e a inclusão no destino é idempotente', () => {
-    const base = instanciaBase()
-    const id = base.itens[0].id
+    const bruta = instanciaBase()
+    const id = bruta.itens[0].id
+    const base = pendente(bruta, id)
     const entrada = { tipo: 'trocar-dia' as const, destino: '2026-10-14', confirmar: true }
     const uma = decidirPendencia(base, id, entrada, AGORA)
     const duas = decidirPendencia(uma, id, entrada, AGORA)
     expect(duas.revisao.decisoes[id].destino).toBe('2026-10-14')
+    // Outro destino não vale: uma cópia já pode ter chegado ao primeiro.
+    expect(() =>
+      decidirPendencia(
+        uma,
+        id,
+        { tipo: 'trocar-dia', destino: '2026-10-15', confirmar: true },
+        AGORA
+      )
+    ).toThrow(SchemaInvalidoError)
 
     // Se a gravação no destino rodar de novo, não cria tarefa duplicada.
     const destino = instanciaBase()
@@ -152,8 +182,9 @@ describe('destino das pendências', () => {
   })
 
   it('descartar preserva o item e registra a decisão no histórico', () => {
-    const base = instanciaBase()
-    const id = base.itens[0].id
+    const bruta = instanciaBase()
+    const id = bruta.itens[0].id
+    const base = pendente(bruta, id)
     const decidido = decidirPendencia(base, id, { tipo: 'descartar' }, AGORA)
 
     expect(decidido.itens.some((i) => i.id === id)).toBe(true)
@@ -162,18 +193,24 @@ describe('destino das pendências', () => {
   })
 
   it('cobre tarefas além dos itens planejados', () => {
-    const base = adicionarTarefa(instanciaBase(), { titulo: 'X', categoria: 'pessoal' }, AGORA)
+    let base = adicionarTarefa(instanciaBase(), { titulo: 'X', categoria: 'pessoal' }, AGORA)
     const tarefa = base.tarefas[0]
+    base = registrarEstado(base, tarefa.id, 'reprogramado')
     const decidido = decidirPendencia(base, tarefa.id, { tipo: 'manter' }, AGORA)
     expect(decidido.revisao.decisoes[tarefa.id].tipo).toBe('manter')
   })
 
-  it('rejeita decisão para item inexistente e após revisão concluída', () => {
+  it('rejeita decisão para item inexistente, sem marcação e revisão concluída', () => {
     const base = instanciaBase()
     expect(() => decidirPendencia(base, 'xyz', { tipo: 'manter' }, AGORA)).toThrow(
       ItemNaoEncontradoError
     )
-    const concluida = concluirRevisao(base, {}, AGORA)
+    // Sem marcação não é pendência — é "sem registro".
+    expect(() => decidirPendencia(base, base.itens[0].id, { tipo: 'manter' }, AGORA)).toThrow(
+      SchemaInvalidoError
+    )
+    const marcada = pendente(base, base.itens[0].id)
+    const concluida = concluirRevisao(marcada, {}, AGORA)
     expect(() => decidirPendencia(concluida, base.itens[0].id, { tipo: 'manter' }, AGORA)).toThrow(
       SchemaInvalidoError
     )
