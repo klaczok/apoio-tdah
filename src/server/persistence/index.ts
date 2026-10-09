@@ -14,7 +14,9 @@ export async function createStateStore(env: NodeJS.ProcessEnv): Promise<StateSto
 
   try {
     const { getPool } = await import('./pg-pool')
-    return new PostgresStateStore(getPool(url))
+    // Ambientes isolados no mesmo banco: preview usa outra tabela
+    // (PERSISTENCE_TABLE), produção usa o padrão.
+    return new PostgresStateStore(getPool(url), env.PERSISTENCE_TABLE)
   } catch {
     return storeIndisponivel()
   }

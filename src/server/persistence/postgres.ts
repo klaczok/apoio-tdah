@@ -15,17 +15,31 @@ export type Queryable = {
 }
 
 const ROW_ID = 'usuario'
+const TABELA_PADRAO = 'estado_usuario'
+
+// Identificador de tabela vem de configuração de ambiente — validação
+// estrita porque o nome entra interpolado no SQL (não parametrizável).
+const IDENTIFICADOR = /^[a-z_][a-z0-9_]{0,62}$/
 
 export class PostgresStateStore implements StateStore {
   private schemaPronto: Promise<PersistenceResult<true>> | null = null
+  private tabela: string
 
-  constructor(private db: Queryable) {}
+  constructor(
+    private db: Queryable,
+    tabela = TABELA_PADRAO
+  ) {
+    if (!IDENTIFICADOR.test(tabela)) {
+      throw new SchemaInvalidoError('nome de tabela inválido')
+    }
+    this.tabela = tabela
+  }
 
   private async ensureSchema(): Promise<PersistenceResult<true>> {
     this.schemaPronto ??= (async () => {
       try {
         await this.db.query(`
-          CREATE TABLE IF NOT EXISTS estado_usuario (
+          CREATE TABLE IF NOT EXISTS ${this.tabela} (
             id TEXT PRIMARY KEY,
             schema_version INTEGER NOT NULL,
             version INTEGER NOT NULL,
@@ -35,7 +49,7 @@ export class PostgresStateStore implements StateStore {
           )
         `)
         await this.db.query(
-          `INSERT INTO estado_usuario (id, schema_version, version, dados)
+          `INSERT INTO ${this.tabela} (id, schema_version, version, dados)
            VALUES ($1, $2, 0, NULL)
            ON CONFLICT (id) DO NOTHING`,
           [ROW_ID, SCHEMA_VERSION]
@@ -57,7 +71,7 @@ export class PostgresStateStore implements StateStore {
     let rows
     try {
       ;({ rows } = await this.db.query(
-        'SELECT schema_version, version, dados FROM estado_usuario WHERE id = $1',
+        `SELECT schema_version, version, dados FROM ${this.tabela} WHERE id = $1`,
         [ROW_ID]
       ))
     } catch (error) {
@@ -104,7 +118,7 @@ export class PostgresStateStore implements StateStore {
 
     try {
       const { rowCount } = await this.db.query(
-        `UPDATE estado_usuario
+        `UPDATE ${this.tabela}
          SET dados = $1::jsonb,
              schema_version = $2,
              version = version + 1,
