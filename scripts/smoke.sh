@@ -10,16 +10,25 @@ fi
 
 echo "Running smoke test against $URL"
 
-STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL")
+if [ -n "${VERCEL_TOKEN:-}" ]; then
+  echo "Using Vercel token to bypass deployment protection"
+  RESPONSE=$(npx --yes vercel@61.1.0 curl "$URL" --token "$VERCEL_TOKEN" --yes)
+  echo "$RESPONSE" | grep -q "Apoio à Rotina" || {
+    echo "Smoke test failed: product name not found in response"
+    exit 1
+  }
+else
+  STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL")
 
-if [ "$STATUS" != "200" ]; then
-  echo "Smoke test failed: expected HTTP 200, got $STATUS"
-  exit 1
+  if [ "$STATUS" != "200" ]; then
+    echo "Smoke test failed: expected HTTP 200, got $STATUS"
+    exit 1
+  fi
+
+  curl -s "$URL" | grep -q "Apoio à Rotina" || {
+    echo "Smoke test failed: product name not found in response"
+    exit 1
+  }
 fi
-
-curl -s "$URL" | grep -q "Apoio à Rotina" || {
-  echo "Smoke test failed: product name not found in response"
-  exit 1
-}
 
 echo "Smoke test passed"
