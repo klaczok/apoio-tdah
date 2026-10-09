@@ -1,0 +1,35 @@
+# Dependencies and builds
+node_modules/
+.next/
+out/
+dist/
+build/
+coverage/
+.vercel/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Private and source material
+.scratch/
+briefing.md
+PlanoAlimentar.pdf
+index.html
+
+# Local data and logs
+*.csv
+*.xlsx
+*.xls
+*.log
+
+# Editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
