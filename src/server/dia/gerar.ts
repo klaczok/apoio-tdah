@@ -58,3 +58,16 @@ export function gerarInstanciaDiaria(
     })),
   }
 }
+
+// Resolve a instância de um dia: a que já existe ou uma materializada da
+// semana ativa. Sem semana ativa e sem instância, não há base para o dia.
+export function instanciaDoDia(
+  existente: InstanciaDiaria | null | undefined,
+  dados: { semanaAtiva: PropostaSemanal | null; rotina: RotinaRecorrente },
+  data: string,
+  versao: number
+): InstanciaDiaria | null {
+  if (existente) return existente
+  if (!dados.semanaAtiva) return null
+  return gerarInstanciaDiaria(dados.semanaAtiva, dados.rotina, data, versao)
+}

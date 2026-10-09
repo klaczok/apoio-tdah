@@ -34,6 +34,34 @@ async function estadoAtual() {
   return lido.value
 }
 
+async function comDiaHoje() {
+  const hoje = dataCivilHoje()
+  await comSemanaConfirmada((r) =>
+    acrescentarCompromisso(r, {
+      titulo: 'Consulta',
+      diaSemana: diaSemanaDe(hoje),
+      inicio: '10:00',
+      duracaoMin: 30,
+      categoria: 'saude',
+      tipo: 'fixo',
+    })
+  )
+  const store = await getStateStore()
+  const lido = await store.load()
+  if (!lido.ok) throw new Error('store indisponível no teste')
+  const instancia = gerarInstanciaDiaria(
+    lido.value.dados.semanaAtiva!,
+    lido.value.dados.rotina,
+    hoje,
+    lido.value.version
+  )
+  await store.save(
+    { ...lido.value.dados, dias: { ...lido.value.dados.dias, [hoje]: instancia } },
+    lido.value.version
+  )
+  return { hoje, instancia }
+}
+
 async function comSemanaConfirmada(extra?: (r: RotinaRecorrente) => RotinaRecorrente) {
   const store = await getStateStore()
   const lido = await store.load()
@@ -357,34 +385,6 @@ describe('POST /api/dia', () => {
 })
 
 describe('POST /api/dia — revisão', () => {
-  async function comDiaHoje() {
-    const hoje = dataCivilHoje()
-    await comSemanaConfirmada((r) =>
-      acrescentarCompromisso(r, {
-        titulo: 'Consulta',
-        diaSemana: diaSemanaDe(hoje),
-        inicio: '10:00',
-        duracaoMin: 30,
-        categoria: 'saude',
-        tipo: 'fixo',
-      })
-    )
-    const store = await getStateStore()
-    const lido = await store.load()
-    if (!lido.ok) throw new Error('store indisponível no teste')
-    const instancia = gerarInstanciaDiaria(
-      lido.value.dados.semanaAtiva!,
-      lido.value.dados.rotina,
-      hoje,
-      lido.value.version
-    )
-    await store.save(
-      { ...lido.value.dados, dias: { ...lido.value.dados.dias, [hoje]: instancia } },
-      lido.value.version
-    )
-    return { hoje, instancia }
-  }
-
   it('registra estado factual de um item do dia', async () => {
     const { hoje, instancia } = await comDiaHoje()
     const item = instancia.itens[0]
@@ -441,5 +441,150 @@ describe('POST /api/dia — revisão', () => {
     expect(revisao.sobrecarga).toBe('leve')
     expect(revisao.motivo).toBe('chuva')
     expect(revisao.nota).toBe('dia tranquilo')
+  })
+})
+
+describe('POST /api/dia — destino das pendências', () => {
+  it('manter registra a decisão sem reagendar nada', async () => {
+    const { hoje, instancia } = await comDiaHoje()
+    const item = instancia.itens[0]
+
+    const resposta = await requisicao({
+      acao: 'pendencia-decidir',
+      data: hoje,
+      id: item.id,
+      tipo: 'manter',
+    })
+
+    expect(resposta.headers.get('location')).toBe('/hoje?decisao=1')
+    const estado = await estadoAtual()
+    expect(estado.dados.dias[hoje].revisao.decisoes[item.id].tipo).toBe('manter')
+    // Nenhuma outra instância foi criada e o item não foi movido.
+    expect(Object.keys(estado.dados.dias)).toEqual([hoje])
+    expect(estado.dados.dias[hoje].itens).toEqual(instancia.itens)
+  })
+
+  it('trocar de dia sem confirmação devolve pedido de confirmação', async () => {
+    const { hoje, instancia } = await comDiaHoje()
+    const amanha = dataCivilAmanha()
+
+    const resposta = await requisicao({
+      acao: 'pendencia-decidir',
+      data: hoje,
+      id: instancia.itens[0].id,
+      tipo: 'trocar-dia',
+      destino: amanha,
+    })
+
+    expect(resposta.headers.get('location')).toBe('/hoje?erro=confirmacao-destino')
+    const estado = await estadoAtual()
+    expect(estado.dados.dias[hoje].revisao.decisoes).toEqual({})
+    expect(estado.dados.dias[amanha]).toBeUndefined()
+  })
+
+  it('prever destino não grava nada e rejeita data que não é futura', async () => {
+    const { hoje, instancia } = await comDiaHoje()
+    const amanha = dataCivilAmanha()
+
+    const resposta = await requisicao({
+      acao: 'pendencia-prever',
+      data: hoje,
+      id: instancia.itens[0].id,
+      destino: amanha,
+    })
+
+    expect(resposta.headers.get('location')).toBe(
+      `/hoje?prever=${instancia.itens[0].id}&destino=${amanha}`
+    )
+    const estado = await estadoAtual()
+    expect(Object.keys(estado.dados.dias)).toEqual([hoje])
+    expect(estado.dados.dias[hoje]).toEqual(instancia)
+
+    const passada = await requisicao({
+      acao: 'pendencia-prever',
+      data: hoje,
+      id: instancia.itens[0].id,
+      destino: hoje,
+    })
+    expect(passada.headers.get('location')).toBe('/hoje?erro=entrada')
+  })
+
+  it('decidir destino de item já realizado é recusado', async () => {
+    const { hoje, instancia } = await comDiaHoje()
+    const item = instancia.itens[0]
+    await requisicao({ acao: 'revisar-item', data: hoje, id: item.id, estado: 'realizado' })
+
+    const resposta = await requisicao({
+      acao: 'pendencia-decidir',
+      data: hoje,
+      id: item.id,
+      tipo: 'manter',
+    })
+
+    expect(resposta.headers.get('location')).toBe('/hoje?erro=entrada')
+    const estado = await estadoAtual()
+    expect(estado.dados.dias[hoje].revisao.decisoes).toEqual({})
+  })
+
+  it('trocar de dia confirmado registra a decisão e cria tarefa rastreável no destino', async () => {
+    const { hoje, instancia } = await comDiaHoje()
+    const item = instancia.itens[0]
+    const amanha = dataCivilAmanha()
+
+    const resposta = await requisicao({
+      acao: 'pendencia-decidir',
+      data: hoje,
+      id: item.id,
+      tipo: 'trocar-dia',
+      destino: amanha,
+      confirmar: 'on',
+    })
+
+    expect(resposta.headers.get('location')).toBe('/hoje?decisao=1')
+    const estado = await estadoAtual()
+    expect(estado.dados.dias[hoje].revisao.decisoes[item.id]).toMatchObject({
+      tipo: 'trocar-dia',
+      destino: amanha,
+    })
+    const destino = estado.dados.dias[amanha]
+    expect(destino).toBeDefined()
+    const tarefa = destino.tarefas.find((t) => t.origemId === item.id)
+    expect(tarefa?.titulo).toBe(item.titulo)
+    // O item de origem fica no histórico do dia, sem alteração.
+    expect(estado.dados.dias[hoje].itens.find((i) => i.id === item.id)).toEqual(item)
+  })
+
+  it('dividir pendência cria partes rastreáveis vinculadas à origem', async () => {
+    const { hoje, instancia } = await comDiaHoje()
+    const item = instancia.itens[0]
+
+    await requisicao({
+      acao: 'pendencia-decidir',
+      data: hoje,
+      id: item.id,
+      tipo: 'dividir',
+      partes: 'Metade A\nMetade B',
+    })
+
+    const atual = (await estadoAtual()).dados.dias[hoje]
+    expect(atual.revisao.decisoes[item.id].tipo).toBe('dividir')
+    expect(atual.tarefas.filter((t) => t.origemId === item.id)).toHaveLength(2)
+  })
+
+  it('concluir a revisão não decide nem reagenda pendências', async () => {
+    const { hoje, instancia } = await comDiaHoje()
+    await requisicao({
+      acao: 'revisar-item',
+      data: hoje,
+      id: instancia.itens[0].id,
+      estado: 'reprogramado',
+    })
+
+    await requisicao({ acao: 'revisar-concluir', data: hoje })
+
+    const estado = await estadoAtual()
+    expect(estado.dados.dias[hoje].revisao.concluidaEm).not.toBeNull()
+    expect(estado.dados.dias[hoje].revisao.decisoes).toEqual({})
+    expect(Object.keys(estado.dados.dias)).toEqual([hoje])
   })
 })
