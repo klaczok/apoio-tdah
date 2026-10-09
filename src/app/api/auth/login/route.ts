@@ -20,11 +20,14 @@ export async function POST(request: Request) {
   const secure = isSecureRequest(request)
 
   if (!valid) {
-    return NextResponse.redirect(new URL('/login?erro=credencial', request.url), 303)
+    return new Response(null, {
+      status: 303,
+      headers: { location: '/login?erro=credencial' },
+    })
   }
 
   const token = await createSessionToken(config, new Date())
-  const response = NextResponse.redirect(new URL('/hoje', request.url), 303)
+  const response = new Response(null, { status: 303, headers: { location: '/hoje' } })
   response.headers.append(
     'Set-Cookie',
     serializeSessionCookie(token, { secure, maxAgeSeconds: config.sessionTtlSeconds })

@@ -7,7 +7,7 @@ describe('POST /api/auth/logout', () => {
     const resposta = await POST(new Request('http://localhost/api/auth/logout', { method: 'POST' }))
 
     expect(resposta.status).toBe(303)
-    expect(resposta.headers.get('location')).toBe('http://localhost/')
+    expect(resposta.headers.get('location')).toBe('/')
   })
 
   it('expira o cookie de sessão', async () => {

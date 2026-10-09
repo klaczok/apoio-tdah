@@ -9,7 +9,7 @@ const SESSION_SECRET = 'segredo-de-teste-com-entropia-suficiente'
 async function tokenValido() {
   return createSessionToken(
     { sessionSecret: SESSION_SECRET, sessionTtlSeconds: 7 * 24 * 60 * 60 },
-    new Date(),
+    new Date()
   )
 }
 

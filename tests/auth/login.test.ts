@@ -38,7 +38,7 @@ describe('POST /api/auth/login', () => {
     const resposta = await POST(requisicaoLogin({ email: EMAIL, password: PASSWORD }))
 
     expect(resposta.status).toBe(303)
-    expect(resposta.headers.get('location')).toBe('http://localhost/hoje')
+    expect(resposta.headers.get('location')).toBe('/hoje')
 
     const cookie = resposta.headers.getSetCookie().join(';')
     expect(cookie).toContain('apoio_sessao=')
@@ -69,7 +69,7 @@ describe('POST /api/auth/login', () => {
     const resposta = await POST(requisicaoLogin({ email: EMAIL, password: 'senha-errada' }))
 
     expect(resposta.status).toBe(303)
-    expect(resposta.headers.get('location')).toBe('http://localhost/login?erro=credencial')
+    expect(resposta.headers.get('location')).toBe('/login?erro=credencial')
     expect(resposta.headers.getSetCookie().join(';')).not.toContain('apoio_sessao=')
   })
 
@@ -77,14 +77,14 @@ describe('POST /api/auth/login', () => {
     const resposta = await POST(requisicaoLogin({ email: 'outro@exemplo.com', password: PASSWORD }))
 
     expect(resposta.status).toBe(303)
-    expect(resposta.headers.get('location')).toBe('http://localhost/login?erro=credencial')
+    expect(resposta.headers.get('location')).toBe('/login?erro=credencial')
   })
 
   it('campos ausentes produz a mesma resposta genérica', async () => {
     const resposta = await POST(requisicaoLogin({}))
 
     expect(resposta.status).toBe(303)
-    expect(resposta.headers.get('location')).toBe('http://localhost/login?erro=credencial')
+    expect(resposta.headers.get('location')).toBe('/login?erro=credencial')
   })
 
   it('não expõe hash, segredo ou senha nas respostas', async () => {
