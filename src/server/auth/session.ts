@@ -9,7 +9,14 @@ type SessionPayload = {
   exp: number
 }
 
-const SESSION_SUBJECT = 'usuario-unico'
+export type IdentidadeAutenticada = {
+  usuarioId: string
+}
+
+// Sujeito estável da conta de ambiente, mantido durante a transição
+// para contas persistidas (ver docs/adr/0002).
+export const ID_USUARIO_LEGADO = 'usuario-unico'
+
 const encoder = new TextEncoder()
 
 function base64UrlEncode(data: Uint8Array): string {
@@ -41,10 +48,14 @@ async function hmacKey(secret: string): Promise<CryptoKey> {
   )
 }
 
-export async function createSessionToken(config: SessionConfig, now: Date): Promise<string> {
+export async function createSessionToken(
+  config: SessionConfig,
+  now: Date,
+  usuarioId: string
+): Promise<string> {
   const iat = Math.floor(now.getTime() / 1000)
   const payload: SessionPayload = {
-    sub: SESSION_SUBJECT,
+    sub: usuarioId,
     iat,
     exp: iat + config.sessionTtlSeconds,
   }
@@ -58,13 +69,13 @@ export async function verifySessionToken(
   sessionSecret: string,
   token: string,
   now: Date
-): Promise<boolean> {
+): Promise<IdentidadeAutenticada | null> {
   const parts = token.split('.')
-  if (parts.length !== 2) return false
+  if (parts.length !== 2) return null
   const [payloadEncoded, signatureEncoded] = parts
 
   const signature = base64UrlDecode(signatureEncoded)
-  if (!signature) return false
+  if (!signature) return null
 
   const key = await hmacKey(sessionSecret)
   const valid = await crypto.subtle.verify(
@@ -73,20 +84,21 @@ export async function verifySessionToken(
     signature.buffer as ArrayBuffer,
     encoder.encode(payloadEncoded)
   )
-  if (!valid) return false
+  if (!valid) return null
 
   const payloadBytes = base64UrlDecode(payloadEncoded)
-  if (!payloadBytes) return false
+  if (!payloadBytes) return null
 
   let payload: SessionPayload
   try {
     payload = JSON.parse(new TextDecoder().decode(payloadBytes))
   } catch {
-    return false
+    return null
   }
 
-  if (payload.sub !== SESSION_SUBJECT) return false
-  if (typeof payload.exp !== 'number') return false
+  if (typeof payload.sub !== 'string' || payload.sub.length === 0) return null
+  if (typeof payload.exp !== 'number') return null
+  if (payload.exp <= Math.floor(now.getTime() / 1000)) return null
 
-  return payload.exp > Math.floor(now.getTime() / 1000)
+  return { usuarioId: payload.sub }
 }

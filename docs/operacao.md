@@ -20,8 +20,9 @@ Definidas na Vercel por ambiente (dashboard → Settings → Environment Variabl
 - `SESSION_SECRET` — assinatura do cookie de sessão (valor diferente por ambiente).
 - `planejador_pessoal_db_POSTGRES_URL` — conexão Neon (a aplicação também aceita qualquer variável com sufixo `_POSTGRES_URL`).
 - `PERSISTENCE_TABLE` — **somente preview**: `estado_usuario_preview`.
+- `IDENTIDADE_TABLE` — **somente preview**: `usuarios_preview` (quando o cadastro multiusuário estiver aberto).
 
-A ausência de variável de auth faz o login falhar fechado (503 + redirect para `/login`), nunca abre acesso.
+A ausência de `SESSION_SECRET` faz o login falhar fechado (503), nunca abre acesso. Credenciais inválidas — do repositório de usuários ou da credencial legada — respondem sempre com o mesmo redirecionamento genérico para `/login`.
 
 ## Gate de promoção
 

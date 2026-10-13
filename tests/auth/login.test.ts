@@ -2,6 +2,10 @@
 
 import { scryptSync, randomBytes } from 'node:crypto'
 import { POST } from '@/app/api/auth/login/route'
+import { hashSenha } from '@/server/auth/senha'
+import { verifySessionToken } from '@/server/auth/session'
+import { getUserStore } from '@/server/identidade'
+import { MemoryUserStore, type CelulaUsuarios } from '@/server/identidade/memory'
 
 const PASSWORD = 'senha-de-teste'
 const EMAIL = 'pessoa@exemplo.com'
@@ -101,5 +105,92 @@ describe('POST /api/auth/login', () => {
       expect(conteudo).not.toContain(SESSION_SECRET)
       expect(conteudo).not.toContain(PASSWORD_HASH)
     }
+  })
+})
+
+describe('POST /api/auth/login — usuário persistido', () => {
+  const driverAnterior = process.env.PERSISTENCE_DRIVER
+
+  function usarDriver(driver: string) {
+    process.env.PERSISTENCE_DRIVER = driver
+    delete (globalThis as { __userStore?: unknown }).__userStore
+  }
+
+  afterAll(() => {
+    if (driverAnterior === undefined) delete process.env.PERSISTENCE_DRIVER
+    else process.env.PERSISTENCE_DRIVER = driverAnterior
+  })
+
+  beforeEach(() => {
+    process.env.AUTH_USER_EMAIL = EMAIL
+    process.env.AUTH_PASSWORD_HASH = PASSWORD_HASH
+    process.env.SESSION_SECRET = SESSION_SECRET
+  })
+
+  it('usuário persistido autentica com a própria senha e a sessão carrega seu ID', async () => {
+    usarDriver('memory')
+    const usuarios = await getUserStore()
+    const criado = await usuarios.criarUsuario({
+      email: 'Persistida@Exemplo.com',
+      senhaHash: await hashSenha('senha-da-conta-persistida'),
+    })
+    if (!criado.ok) throw new Error('falha ao semear usuário')
+
+    const resposta = await POST(
+      requisicaoLogin({ email: 'persistida@exemplo.com', password: 'senha-da-conta-persistida' })
+    )
+
+    expect(resposta.status).toBe(303)
+    expect(resposta.headers.get('location')).toBe('/hoje')
+
+    const cookie = resposta.headers.getSetCookie().join(';')
+    const token = /apoio_sessao=([^;]+)/.exec(cookie)?.[1]
+    expect(token).toBeTruthy()
+    await expect(verifySessionToken(SESSION_SECRET, token!, new Date())).resolves.toEqual({
+      usuarioId: criado.value.id,
+    })
+  })
+
+  it('senha errada de usuário persistido produz a resposta genérica', async () => {
+    usarDriver('memory')
+    const usuarios = await getUserStore()
+    await usuarios.criarUsuario({
+      email: 'persistida@exemplo.com',
+      senhaHash: await hashSenha('senha-da-conta-persistida'),
+    })
+
+    const resposta = await POST(
+      requisicaoLogin({ email: 'persistida@exemplo.com', password: 'senha-errada' })
+    )
+
+    expect(resposta.status).toBe(303)
+    expect(resposta.headers.get('location')).toBe('/login?erro=credencial')
+  })
+
+  it('repositório indisponível não derruba o acesso legado durante a transição', async () => {
+    usarDriver('driver-inexistente')
+
+    const resposta = await POST(requisicaoLogin({ email: EMAIL, password: PASSWORD }))
+
+    expect(resposta.status).toBe(303)
+    expect(resposta.headers.get('location')).toBe('/hoje')
+  })
+
+  it('registro corrompido não cai na credencial legada — falha fechada', async () => {
+    usarDriver('memory')
+    const celula: CelulaUsuarios = { registros: new Map(), indisponivel: false }
+    const usuarios = new MemoryUserStore(celula)
+    const criado = await usuarios.criarUsuario({
+      email: EMAIL,
+      senhaHash: await hashSenha('outra-senha'),
+    })
+    if (!criado.ok) throw new Error('falha ao semear usuário')
+    celula.registros.get(criado.value.id)!.senhaHash = 'corrompido'
+    ;(globalThis as { __userStore?: unknown }).__userStore = Promise.resolve(usuarios)
+
+    const resposta = await POST(requisicaoLogin({ email: EMAIL, password: PASSWORD }))
+
+    expect(resposta.status).toBe(303)
+    expect(resposta.headers.get('location')).toBe('/login?erro=credencial')
   })
 })

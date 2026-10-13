@@ -23,7 +23,7 @@ export async function createStateStore(env: NodeJS.ProcessEnv): Promise<StateSto
 }
 
 // Integrações de Postgres na Vercel podem prefixar as variáveis (ex.: `<banco>_POSTGRES_URL`).
-function urlPostgresIntegracao(env: NodeJS.ProcessEnv): string | undefined {
+export function urlPostgresIntegracao(env: NodeJS.ProcessEnv): string | undefined {
   const chave = Object.keys(env).find((k) => k.endsWith('_POSTGRES_URL') && env[k])
   return chave ? env[chave] : undefined
 }
