@@ -61,6 +61,10 @@
   min-width: 760px;
 }
 
+.linhaGrade {
+  display: contents;
+}
+
 .canto {
   border-right: 1px solid var(--borda-sutil);
   border-bottom: 1px solid var(--borda-sutil);
