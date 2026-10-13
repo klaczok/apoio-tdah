@@ -59,7 +59,7 @@ describe('shell autenticado', () => {
 
     const movel = screen.getByRole('navigation', { name: /móvel/i })
     const criacao = within(movel).getByRole('link', { name: /novo compromisso/i })
-    expect(criacao).toHaveAttribute('href', '/configurar/compromissos')
+    expect(criacao).toHaveAttribute('href', '/semana/novo')
   })
 
   it('mostra a identidade da conta derivada do e-mail autenticado', () => {

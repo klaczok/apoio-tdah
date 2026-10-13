@@ -428,6 +428,29 @@
   font-size: var(--texto-sm);
 }
 
+/* Criação em contexto: painel recolhível com o formulário rápido —
+   nada de modal que roube foco ou dependa de script. */
+.criacao {
+  margin-bottom: var(--espaco-md);
+  padding: var(--espaco-sm) var(--espaco-md);
+  background: var(--superficie-cartao);
+  border: 1px solid var(--borda-sutil);
+  border-radius: var(--raio-lg);
+}
+
+.criacao > summary {
+  min-height: 44px;
+  padding: var(--espaco-xs) 0;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.dicaCriacao {
+  margin: 0 0 var(--espaco-sm);
+  color: var(--texto-secundario);
+  font-size: var(--texto-sm);
+}
+
 /* Leitura móvel: um dia por vez com seletor horizontal de datas e
    controles explícitos — escondida no desktop, onde a grade governa. */
 .agendaMovel {

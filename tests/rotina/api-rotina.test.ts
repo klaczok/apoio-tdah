@@ -85,6 +85,51 @@ describe('POST /api/rotina/:etapa', () => {
     })
   })
 
+  it('criação em contexto aceita início e fim, e devolve à agenda', async () => {
+    const resposta = await requisicao('compromissos', {
+      acao: 'adicionar',
+      volta: 'semana',
+      semana: '2026-10-12',
+      dia: '2026-10-15',
+      titulo: 'Fisioterapia',
+      diaSemana: 'qui',
+      inicio: '18:00',
+      fim: '18:50',
+      categoria: 'saude',
+      tipo: 'flexivel',
+    })
+
+    expect(resposta.status).toBe(303)
+    expect(resposta.headers.get('location')).toBe(
+      '/semana?criado=1&semana=2026-10-12&dia=2026-10-15'
+    )
+    const criado = (await estadoAtual()).rotina.compromissos?.find(
+      (c) => c.titulo === 'Fisioterapia'
+    )
+    expect(criado).toMatchObject({ inicio: '18:00', duracaoMin: 50 })
+  })
+
+  it('fim antes do início volta ao formulário de criação com erro', async () => {
+    const resposta = await requisicao('compromissos', {
+      acao: 'adicionar',
+      volta: 'semana',
+      semana: '2026-10-12',
+      dia: '2026-10-15',
+      titulo: 'Quebrado',
+      diaSemana: 'qui',
+      inicio: '18:00',
+      fim: '17:00',
+      categoria: 'saude',
+      tipo: 'flexivel',
+    })
+
+    expect(resposta.headers.get('location')).toBe(
+      '/semana/novo?erro=entrada&semana=2026-10-12&dia=2026-10-15'
+    )
+    const titulos = ((await estadoAtual()).rotina.compromissos ?? []).map((c) => c.titulo)
+    expect(titulos).not.toContain('Quebrado')
+  })
+
   it('recusa remoção de compromisso fixo sem confirmação', async () => {
     const rotina = acrescentarCompromisso(rotinaVazia(), {
       titulo: 'Terapia',

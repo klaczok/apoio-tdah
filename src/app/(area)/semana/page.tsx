@@ -19,6 +19,7 @@ import { ItemNaoEncontradoError } from '@/server/rotina/modelo'
 import { CATEGORIAS, ROTULOS_CATEGORIA, ROTULOS_DIA, type Categoria } from '@/server/rotina/modelo'
 import {
   dataCivilHoje,
+  diaSemanaDe,
   dataCivilParaTexto,
   ehDataCivil,
   horaParaMinutos,
@@ -28,11 +29,18 @@ import {
   somarDiasCivil,
 } from '@/server/tempo'
 import { AjusteItem } from '@/app/_components/ajuste-item'
+import { FormCompromissoRapido } from '@/app/_components/compromisso-rapido'
 
 export const dynamic = 'force-dynamic'
 
 type Props = {
-  searchParams: Promise<{ erro?: string; salvo?: string; semana?: string; dia?: string }>
+  searchParams: Promise<{
+    erro?: string
+    salvo?: string
+    criado?: string
+    semana?: string
+    dia?: string
+  }>
 }
 
 const ROTULO_TIPO: Record<TipoBloco, string> = {
@@ -261,9 +269,14 @@ function ConteudoColuna({
             </summary>
             <div className={styles.detalheEvento}>
               <p>
-                {horarioParaTexto(b.inicio, b.fim)} · {ROTULOS_CATEGORIA[categoria]} ·{' '}
+                {dataCivilParaTexto(d.data)} · {horarioParaTexto(b.inicio, b.fim)} ·{' '}
+                {minutosParaTexto(b.fimMin - b.inicioMin)} · {ROTULOS_CATEGORIA[categoria]} ·{' '}
                 {ROTULO_TIPO[b.tipo]}
               </p>
+              {b.tipo === 'fixo' && (
+                <p>Compromisso protegido — qualquer ajuste exige confirmação explícita.</p>
+              )}
+              {b.sobreposto && <p>Sobreposto a outro item do dia.</p>}
               {ajustavel && fonte && <AjusteItem item={fonte} data={d.data} volta="semana" />}
             </div>
           </details>
@@ -391,6 +404,11 @@ export default async function SemanaPage({ searchParams }: Props) {
           Ajuste salvo.
         </p>
       )}
+      {params.criado === '1' && (
+        <p role="status" className={styles.feedback}>
+          Compromisso criado na rotina — entra nas próximas propostas semanais.
+        </p>
+      )}
       {mensagemErro && (
         <p role="alert" className={styles.erro}>
           {mensagemErro}
@@ -401,6 +419,19 @@ export default async function SemanaPage({ searchParams }: Props) {
 
       {resumo && algumDia && (
         <>
+          <details className={styles.criacao}>
+            <summary>Novo compromisso</summary>
+            <p className={styles.dicaCriacao}>
+              Cria uma recorrência na sua rotina — entra nas próximas propostas semanais.
+            </p>
+            <FormCompromissoRapido
+              prefixo="agenda"
+              diaSemanaPadrao={diaSemanaDe(diaSel)}
+              semana={segunda}
+              dia={diaSel}
+            />
+          </details>
+
           <div className={styles.gradeScroll}>
             <div
               className={styles.grade}
