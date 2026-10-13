@@ -42,6 +42,12 @@ export function resumoBlocoMusica(b: BlocoMusica): string {
   return `${ROTULOS_DIA[b.diaSemana]} ${b.inicio} · ${ROTULOS_TIPO_MUSICA[b.tipo]} · ${b.duracaoMin} min`
 }
 
+// Etapa sem nenhum dado informado aparece como pendente — os campos
+// parciais dentro do resumo continuam dizendo "a confirmar" no texto.
+export function etapaPendente(rotina: RotinaRecorrente, etapa: Etapa): boolean {
+  return resumoEtapa(rotina, etapa) === A_CONFIRMAR
+}
+
 export function resumoEtapa(rotina: RotinaRecorrente, etapa: Etapa): string {
   switch (etapa) {
     case 'trabalho': {

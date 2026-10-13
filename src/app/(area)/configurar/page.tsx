@@ -1,8 +1,9 @@
 import Link from 'next/link'
 import styles from './configurar.module.css'
 import { ETAPAS, ROTULOS_ETAPA } from './etapas'
-import { resumoEtapa } from './resumo'
+import { etapaPendente, resumoEtapa } from './resumo'
 import { redirect } from 'next/navigation'
+import { Aviso, CabecalhoPagina } from '@/app/_components/ui'
 import { storeDoUsuario } from '@/server/auth/contexto'
 import { MENSAGENS_ERRO } from '@/server/persistence/mensagens'
 import { rotinaVazia } from '@/server/rotina/modelo'
@@ -22,35 +23,49 @@ export default async function ConfigurarPage({ searchParams }: Props) {
   const erroCarga = !carregado.ok
   const rotina = carregado.ok ? carregado.value.dados.rotina : rotinaVazia()
   const mensagemErro = params.erro ? MENSAGENS_ERRO[params.erro] : undefined
+  const pendentes = erroCarga ? 0 : ETAPAS.filter((etapa) => etapaPendente(rotina, etapa)).length
 
   return (
     <main className={styles.container}>
-      <h1 className={styles.title}>Configurar rotina</h1>
-      <p className={styles.intro}>
-        Cada etapa é curta e pode ser revista depois. O que não for informado fica a confirmar —
-        nenhum valor é inventado. As alterações aqui valem para todas as semanas futuras.
-      </p>
+      <CabecalhoPagina
+        eyebrow="Rotina recorrente"
+        titulo="Configurar rotina"
+        subtitulo="Cada etapa é curta e pode ser revista depois. O que não for informado fica a confirmar — nenhum valor é inventado. As alterações aqui valem para todas as semanas futuras."
+        acoes={
+          <span className={`${styles.tagEtapa} ${pendentes ? styles.tagPendente : styles.tagOk}`}>
+            {pendentes ? `${pendentes} etapa(s) a confirmar` : 'Tudo configurado'}
+          </span>
+        }
+      />
 
-      {params.concluida === '1' && (
-        <p role="status" className={styles.feedback}>
-          Configuração salva.
-        </p>
-      )}
+      {params.concluida === '1' && <Aviso tipo="sucesso">Configuração salva.</Aviso>}
       {(mensagemErro || erroCarga) && (
-        <p role="alert" className={styles.erro}>
+        <Aviso tipo="erro">
           {mensagemErro ?? 'Não foi possível carregar sua rotina agora. Tente recarregar.'}
-        </p>
+        </Aviso>
       )}
 
       <ol className={styles.etapas}>
-        {ETAPAS.map((etapa, indice) => (
-          <li key={etapa} className={styles.etapa}>
-            <Link className={styles.etapaLink} href={`/configurar/${etapa}`}>
-              {indice + 1}. {ROTULOS_ETAPA[etapa]}
-            </Link>
-            <span className={styles.resumo}>{resumoEtapa(rotina, etapa)}</span>
-          </li>
-        ))}
+        {ETAPAS.map((etapa, indice) => {
+          const pendente = !erroCarga && etapaPendente(rotina, etapa)
+          return (
+            <li key={etapa} className={styles.etapa}>
+              <span className={styles.etapaCabeca}>
+                <Link className={styles.etapaLink} href={`/configurar/${etapa}`}>
+                  {indice + 1}. {ROTULOS_ETAPA[etapa]}
+                </Link>
+                <span
+                  className={`${styles.tagEtapa} ${pendente ? styles.tagPendente : styles.tagOk}`}
+                >
+                  {pendente ? 'A confirmar' : 'Configurada'}
+                </span>
+              </span>
+              <span className={styles.resumo}>
+                {erroCarga ? 'Resumo indisponível.' : resumoEtapa(rotina, etapa)}
+              </span>
+            </li>
+          )
+        })}
       </ol>
 
       <Link className={styles.voltar} href="/hoje">

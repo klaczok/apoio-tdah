@@ -34,6 +34,47 @@
   display: flex;
   flex-direction: column;
   gap: 0.125rem;
+  padding: var(--espaco-sm) var(--espaco-md);
+  background: var(--superficie-cartao);
+  border: 1px solid var(--borda-sutil);
+  border-radius: var(--raio-md);
+}
+
+.etapaCabeca {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--espaco-xs);
+}
+
+.tagEtapa {
+  padding: 1px 8px;
+  font-size: var(--texto-xs);
+  font-weight: 700;
+  border-radius: var(--raio-pill);
+}
+
+.tagPendente {
+  color: var(--protecao);
+  background: var(--protecao-fundo);
+}
+
+.tagOk {
+  color: var(--feedback-sucesso);
+  background: var(--feedback-sucesso-fundo);
+}
+
+.navEtapas {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--espaco-sm);
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.navEtapas a {
+  color: var(--acao-primaria);
 }
 
 .etapaLink {

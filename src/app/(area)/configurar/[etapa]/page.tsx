@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import styles from '../configurar.module.css'
-import { ehEtapa, ETAPAS, ROTULOS_ETAPA, type Etapa } from '../etapas'
+import { ehEtapa, ETAPAS, proximaEtapa, ROTULOS_ETAPA, type Etapa } from '../etapas'
+import { Aviso, CabecalhoPagina } from '@/app/_components/ui'
 import {
   resumoBlocoEstudo,
   resumoBlocoMusica,
@@ -766,30 +767,42 @@ export default async function EtapaPage({ params, searchParams }: Props) {
   const rotina = carregado.ok ? carregado.value.dados.rotina : rotinaVazia()
   const mensagemErro = query.erro ? MENSAGENS_ERRO[query.erro] : undefined
   const indice = ETAPAS.indexOf(etapa)
+  const anterior = indice > 0 ? ETAPAS[indice - 1] : null
+  const proxima = proximaEtapa(etapa)
 
   return (
     <main className={styles.container}>
-      <p className={styles.progresso}>
-        Etapa {indice + 1} de {ETAPAS.length}
-      </p>
-      <h1 className={styles.title}>{ROTULOS_ETAPA[etapa]}</h1>
+      <CabecalhoPagina
+        eyebrow={`Etapa ${indice + 1} de ${ETAPAS.length}`}
+        titulo={ROTULOS_ETAPA[etapa]}
+        acoes={
+          <Link className={styles.voltar} href="/configurar">
+            Resumo das etapas
+          </Link>
+        }
+      />
 
-      {query.salvo === '1' && (
-        <p role="status" className={styles.feedback}>
-          Salvo.
-        </p>
-      )}
+      {query.salvo === '1' && <Aviso tipo="sucesso">Salvo.</Aviso>}
       {(mensagemErro || erroCarga) && (
-        <p role="alert" className={styles.erro}>
+        <Aviso tipo="erro">
           {mensagemErro ?? 'Não foi possível carregar sua rotina agora. Tente recarregar.'}
-        </p>
+        </Aviso>
       )}
 
       {FORMULARIOS[etapa](rotina)}
 
-      <Link className={styles.voltar} href="/configurar">
-        Voltar ao resumo
-      </Link>
+      <nav className={styles.navEtapas} aria-label="Navegação entre etapas">
+        {anterior ? (
+          <Link href={`/configurar/${anterior}`}>← {ROTULOS_ETAPA[anterior]}</Link>
+        ) : (
+          <span />
+        )}
+        {proxima ? (
+          <Link href={`/configurar/${proxima}`}>{ROTULOS_ETAPA[proxima]} →</Link>
+        ) : (
+          <Link href="/configurar">Concluir e voltar ao resumo</Link>
+        )}
+      </nav>
     </main>
   )
 }

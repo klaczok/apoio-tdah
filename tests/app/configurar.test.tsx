@@ -81,6 +81,27 @@ describe('Configuração da rotina — resumo', () => {
     expect(screen.getByText(/dormir 23:00/i)).toBeInTheDocument()
   })
 
+  it('marca por texto quais etapas estão configuradas e quais faltam', async () => {
+    const rotina = definirSono(rotinaVazia(), { dormir: '23:00', acordar: '07:00' })
+    await gravar(rotina)
+    await renderizarIndex()
+
+    const sono = screen.getByRole('link', { name: /sono/i }).closest('li')!
+    expect(sono).toHaveTextContent(/configurada/i)
+    const trabalho = screen.getByRole('link', { name: /trabalho/i }).closest('li')!
+    expect(trabalho).toHaveTextContent(/a confirmar/i)
+    expect(screen.getByText(/etapa\(s\) a confirmar/i)).toBeInTheDocument()
+  })
+
+  it('etapa oferece navegação clara para anterior e próxima', async () => {
+    await gravar()
+    await renderizarEtapa('sono')
+
+    const nav = screen.getByRole('navigation', { name: /navegação entre etapas/i })
+    expect(nav).toHaveTextContent(/períodos protegidos/i)
+    expect(nav).toHaveTextContent(/alimentação/i)
+  })
+
   it('apresenta erro de persistência quando o armazenamento falha', async () => {
     await renderizarIndex({ erro: 'persistencia' })
     expect(screen.getByRole('alert')).toHaveTextContent(/não foi possível/i)
