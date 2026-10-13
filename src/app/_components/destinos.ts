@@ -24,7 +24,7 @@ export const DESTINO_CONFIGURACAO: Destino = {
 // Capacidade de criação já existente reutilizada pela ação central do
 // celular — nenhuma capacidade nova é criada nesta fundação.
 export const ACAO_CENTRAL = {
-  href: '/configurar/compromissos',
+  href: '/semana/novo',
   rotulo: 'Novo compromisso',
   icone: '＋',
 }

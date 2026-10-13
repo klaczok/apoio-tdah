@@ -279,6 +279,44 @@ describe('/semana — foco diário no celular', () => {
     expect(nav).toBeInTheDocument()
   })
 
+  it('bloco selecionado comunica data, duração e proteção no painel', async () => {
+    const { hoje } = await comSemana()
+
+    await renderizar()
+
+    const consulta = screen
+      .getAllByRole('group', { name: /consulta.*saúde.*fixo/i })
+      .map((g) => g.closest('details')!)[0]
+    expect(consulta).toHaveTextContent(new RegExp(dataCivilParaTexto(hoje)))
+    expect(consulta).toHaveTextContent(/30min/i)
+    expect(consulta).toHaveTextContent(/protegido.*confirmação/i)
+  })
+
+  it('criação rápida usa o contrato da rotina e devolve à agenda', async () => {
+    await comSemana()
+    const hoje = dataCivilHoje()
+
+    await renderizar()
+
+    const criar = screen.getAllByRole('button', { name: /criar compromisso/i })[0]
+    const form = criar.closest('form')!
+    expect(form).toHaveAttribute('action', '/api/rotina/compromissos')
+    // Campos do domínio: nome, dia, início, fim, categoria, proteção.
+    for (const nome of ['titulo', 'diaSemana', 'inicio', 'fim', 'categoria', 'tipo']) {
+      expect(form.querySelector(`[name="${nome}"]`)).not.toBeNull()
+    }
+    expect(form.querySelector('input[name="volta"]')).toHaveValue('semana')
+    expect(form.querySelector('select[name="diaSemana"]')).toHaveValue(diaSemanaDe(hoje))
+  })
+
+  it('criação concluída mostra feedback na agenda', async () => {
+    await comSemana()
+
+    await renderizar({ criado: '1' })
+
+    expect(screen.getByRole('status')).toHaveTextContent(/compromisso criado/i)
+  })
+
   it('dia fora da semana cai para hoje ou segunda sem quebrar', async () => {
     await comSemana()
     const dias = diasDaSemana(dataCivilHoje())

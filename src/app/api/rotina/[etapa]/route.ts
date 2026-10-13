@@ -24,6 +24,7 @@ import {
 } from '@/server/rotina/modelo'
 import { VERSAO_REFERENCIA_ATUAL } from '@/server/rotina/referencia-alimentar'
 import { atualizarRotina } from '@/server/usecases/rotina'
+import { ehDataCivil, horaParaMinutos } from '@/server/tempo'
 
 function textoOuNulo(form: FormData, campo: string): string | null {
   const valor = String(form.get(campo) ?? '').trim()
@@ -75,12 +76,22 @@ function aplicador(etapa: Etapa, form: FormData): (rotina: RotinaRecorrente) => 
         const confirmar = form.get('confirmar') === 'on'
         return (r) => removerCompromisso(r, id, confirmar)
       }
+      // A criação em contexto informa início e fim; a configuração clássica
+      // informa duração. Os dois viram duracaoMin para o mesmo contrato.
+      const inicioTxt = String(form.get('inicio') ?? '')
+      const fimTxt = textoOuNulo(form, 'fim')
+      const duracaoTxt = textoOuNulo(form, 'duracaoMin')
+      const duracaoMin = duracaoTxt
+        ? Number(duracaoTxt)
+        : fimTxt
+          ? horaParaMinutos(fimTxt) - horaParaMinutos(inicioTxt)
+          : NaN
       return (r) =>
         acrescentarCompromisso(r, {
           titulo: String(form.get('titulo') ?? ''),
           diaSemana: String(form.get('diaSemana') ?? ''),
-          inicio: String(form.get('inicio') ?? ''),
-          duracaoMin: Number(form.get('duracaoMin')),
+          inicio: inicioTxt,
+          duracaoMin,
           categoria: String(form.get('categoria') ?? ''),
           tipo: String(form.get('tipo') ?? ''),
         })
@@ -163,6 +174,21 @@ export async function POST(request: Request, contexto: { params: Promise<{ etapa
   }
 
   const resultado = await atualizarRotina(store, aplicador(etapa, form))
+
+  // Criação em contexto da agenda: devolve o usuário ao ponto de origem,
+  // preservando a semana e o dia que estavam selecionados.
+  const volta = textoOuNulo(form, 'volta')
+  if (volta === 'semana' && etapa === 'compromissos') {
+    const semana = textoOuNulo(form, 'semana')
+    const dia = textoOuNulo(form, 'dia')
+    const contexto =
+      (semana && ehDataCivil(semana) ? `&semana=${semana}` : '') +
+      (dia && ehDataCivil(dia) ? `&dia=${dia}` : '')
+    if (!resultado.ok) {
+      return redirecionar(`/semana/novo?erro=${erroParaParam(resultado.error)}${contexto}`)
+    }
+    return redirecionar(`/semana?criado=1${contexto}`)
+  }
 
   if (!resultado.ok) {
     return redirecionar(`/configurar/${etapa}?erro=${erroParaParam(resultado.error)}`)
