@@ -1,31 +1,300 @@
-.container {
+/* Landing pública — mesma linguagem visual do produto (tokens de
+ * globals.css), em layout editorial de largura livre. */
+
+.pagina {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 100% 0, var(--superficie-brilho) 0, transparent 30%),
+    var(--superficie-pagina);
+}
+
+/* ----- Topo ----- */
+
+.topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espaco-md);
+  width: min(1080px, 100%);
+  margin: 0 auto;
+  padding: var(--espaco-lg) var(--espaco-lg);
+}
+
+.marca {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.marcaSimbolo {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  color: var(--acao-contraste);
+  background: var(--acao-primaria);
+  border-radius: 15px 17px 13px 18px;
+  font-family: var(--fonte-titulo);
+  font-size: 1.625rem;
+  font-style: italic;
+}
+
+.marcaTexto {
   display: flex;
   flex-direction: column;
+}
+
+.marcaTexto strong {
+  font-family: var(--fonte-titulo);
+  font-size: var(--texto-lg);
+  font-weight: 400;
+  line-height: 1;
+}
+
+.marcaTexto small {
+  margin-top: 4px;
+  color: var(--texto-secundario);
+  font-size: var(--texto-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.topoNav {
+  display: flex;
   align-items: center;
-  width: 100%;
-  padding: var(--espaco-2xl) var(--espaco-xl);
+  gap: var(--espaco-md);
+}
+
+.linkEntrar {
+  color: var(--texto-secundario);
+  font-size: var(--texto-sm);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.linkEntrar:hover {
+  color: var(--acao-primaria);
+}
+
+/* ----- Herói ----- */
+
+.heroi {
+  width: min(1080px, 100%);
+  margin: 0 auto;
+  padding: clamp(3rem, 8vw, 6.5rem) var(--espaco-lg) clamp(2.5rem, 6vw, 5rem);
   text-align: center;
+}
+
+.sobretitulo {
+  margin: 0 0 var(--espaco-sm);
+  color: var(--acao-primaria);
+  font-size: var(--texto-xs);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.titulo {
+  margin: 0;
+  font-family: var(--fonte-titulo);
+  font-size: clamp(2.75rem, 6.5vw, 4.75rem);
+  font-weight: 400;
+  line-height: var(--altura-titulo);
+  letter-spacing: -0.03em;
+  color: var(--texto-primario);
+}
+
+.titulo em {
+  color: var(--acao-primaria);
+}
+
+.lead {
+  margin: var(--espaco-lg) auto 0;
+  font-size: var(--texto-lg);
+  line-height: 1.55;
+  color: var(--texto-secundario);
+  max-width: 56ch;
+}
+
+.acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espaco-sm);
+  justify-content: center;
+  margin-top: var(--espaco-xl);
+}
+
+.acaoPrincipal {
+  font-size: var(--texto-base);
+}
+
+.prova {
+  margin: var(--espaco-md) 0 0;
+  color: var(--texto-terciario);
+  font-size: var(--texto-sm);
+}
+
+/* ----- Seções ----- */
+
+.secao {
+  width: min(1080px, 100%);
+  margin: 0 auto;
+  padding: clamp(2rem, 5vw, 3.5rem) var(--espaco-lg);
+}
+
+.secaoTitulo {
+  margin: 0 0 var(--espaco-xl);
+  font-family: var(--fonte-titulo);
+  font-size: var(--texto-xl);
+  font-weight: 400;
+  text-align: center;
+  color: var(--texto-primario);
+}
+
+.grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: var(--espaco-md);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cartao {
+  padding: var(--espaco-lg);
   background: var(--superficie-cartao);
   border: 1px solid var(--borda-sutil);
   border-radius: var(--raio-xl);
   box-shadow: var(--sombra-cartao);
 }
 
-.title {
-  margin: 0 0 var(--espaco-xs);
-  font-size: var(--texto-2xl);
-  line-height: var(--altura-titulo);
-  letter-spacing: -0.03em;
+.cartaoIcone {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  color: var(--acao-primaria);
+  background: var(--superficie-suave);
+  border-radius: var(--raio-lg);
+  font-size: 1.375rem;
+}
+
+.cartaoTitulo {
+  margin: var(--espaco-sm) 0 var(--espaco-2xs);
+  font-size: var(--texto-base);
+  font-weight: 700;
   color: var(--texto-primario);
 }
 
-.lead {
+.cartaoTexto {
   margin: 0;
-  font-size: var(--texto-base);
+  font-size: var(--texto-sm);
+  line-height: 1.6;
   color: var(--texto-secundario);
-  max-width: 40ch;
 }
 
-.entrar {
+/* ----- Passos ----- */
+
+.passos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--espaco-md);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: passo;
+}
+
+.passo {
+  display: flex;
+  gap: var(--espaco-md);
+  padding: var(--espaco-lg);
+  background: var(--superficie-quente);
+  border: 1px solid var(--borda-sutil);
+  border-radius: var(--raio-xl);
+}
+
+.passoNumero {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  place-items: center;
+  color: var(--acao-contraste);
+  background: var(--acao-primaria);
+  border-radius: 50%;
+  font-family: var(--fonte-titulo);
+  font-size: var(--texto-lg);
+}
+
+/* ----- Chamada final ----- */
+
+.chamadaFinal {
+  width: min(720px, calc(100% - 2 * var(--espaco-lg)));
+  margin: clamp(2rem, 5vw, 4rem) auto;
+  padding: clamp(2rem, 5vw, 3.5rem) var(--espaco-lg);
+  text-align: center;
+  background: var(--superficie-invertida);
+  border-radius: var(--raio-xl);
+}
+
+.chamadaTitulo {
+  margin: 0;
+  font-family: var(--fonte-titulo);
+  font-size: clamp(1.75rem, 4vw, 2.5rem);
+  font-weight: 400;
+  line-height: 1.15;
+  color: var(--texto-invertido);
+}
+
+.chamadaFinal .lead {
+  color: color-mix(in srgb, var(--texto-invertido) 78%, transparent);
+  font-size: var(--texto-base);
+}
+
+.chamadaFinal .acaoPrincipal {
+  display: inline-flex;
   margin-top: var(--espaco-xl);
+}
+
+/* ----- Rodapé ----- */
+
+.rodape {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espaco-sm);
+  width: min(1080px, 100%);
+  margin: 0 auto;
+  padding: var(--espaco-xl) var(--espaco-lg) var(--espaco-2xl);
+  color: var(--texto-terciario);
+  font-size: var(--texto-sm);
+}
+
+@media (max-width: 640px) {
+  .topo {
+    padding: var(--espaco-md);
+  }
+
+  .marcaTexto small {
+    display: none;
+  }
+
+  .linkEntrar {
+    display: none;
+  }
+
+  .heroi,
+  .secao {
+    padding-inline: var(--espaco-md);
+  }
+
+  .acoes .botao,
+  .acoes a {
+    width: 100%;
+    justify-content: center;
+  }
 }

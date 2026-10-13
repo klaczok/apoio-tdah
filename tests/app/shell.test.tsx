@@ -112,7 +112,7 @@ describe('shell público de autenticação', () => {
   it('usa a mesma marca sem expor navegação privada', () => {
     render(<ShellPublico>conteúdo público</ShellPublico>)
 
-    expect(screen.getByText('Apoio')).toBeInTheDocument()
+    expect(screen.getByText('Ritmo')).toBeInTheDocument()
     expect(screen.queryByRole('navigation')).not.toBeInTheDocument()
   })
 })
