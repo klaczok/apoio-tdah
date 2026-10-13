@@ -15,6 +15,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ erro: 'indisponivel' }, { status: 503 })
   }
 
+  // Gate operacional: cadastros podem permanecer fechados até a
+  // verificação da migração da conta legada (docs/operacao/migracao-legado).
+  if (process.env.CADASTRO_FECHADO === '1') {
+    return new Response(null, {
+      status: 303,
+      headers: { location: '/cadastro?erro=indisponivel' },
+    })
+  }
+
   const form = await request.formData().catch(() => null)
   const email = String(form?.get('email') ?? '')
   const senha = String(form?.get('senha') ?? '')

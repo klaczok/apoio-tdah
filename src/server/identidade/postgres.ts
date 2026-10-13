@@ -75,7 +75,7 @@ export class PostgresUserStore implements UserStore {
     if (!schema.ok) return schema
 
     const agora = new Date().toISOString()
-    const id = novoUsuarioId()
+    const id = entrada.id ?? novoUsuarioId()
     const email = normalizarEmail(entrada.email)
 
     try {

@@ -20,6 +20,10 @@ export type IdentidadeResult<T> = { ok: true; value: T } | { ok: false; error: I
 export type NovoUsuario = {
   email: string
   senhaHash: PasswordHash
+  // ID opcional — usado pela migração da conta legada para manter o
+  // identificador estável que já é dono da linha de estado. Cadastros
+  // normais omitm e recebem um UUID novo.
+  id?: string
 }
 
 export interface UserStore {

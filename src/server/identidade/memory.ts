@@ -56,7 +56,7 @@ export class MemoryUserStore implements UserStore {
 
     const agora = new Date().toISOString()
     const registro: RegistroUsuario = {
-      id: novoUsuarioId(),
+      id: entrada.id ?? novoUsuarioId(),
       email,
       senhaHash: serializePasswordHash(entrada.senhaHash),
       criadoEm: agora,
