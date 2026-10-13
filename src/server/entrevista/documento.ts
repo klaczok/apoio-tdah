@@ -24,10 +24,35 @@ export function formatoDoNome(nome: string): FormatoDocumento | null {
   return FORMATOS_DOCUMENTO.find((f) => f === extensao) ?? null
 }
 
-export function extrairTextoDocumento(bytes: Uint8Array, formato: FormatoDocumento): string | null {
-  if (formato !== 'txt') return null
-  const texto = new TextDecoder('utf-8', { fatal: false }).decode(bytes)
-  return texto.slice(0, LIMITE_TEXTO_EXTRAIDO)
+// Extração transitória: TXT decodificado direto; PDF/DOCX passam pelos
+// parsers locais. O material usado nunca passa de 10 páginas nem de
+// 10 mil caracteres — o que ocorrer primeiro (spec v3). Falhas de
+// extração propagam para a rota, que devolve erro factual.
+export async function extrairTextoDocumento(
+  bytes: Uint8Array,
+  formato: FormatoDocumento
+): Promise<string | null> {
+  if (formato === 'txt') {
+    const texto = new TextDecoder('utf-8', { fatal: false }).decode(bytes)
+    return texto.slice(0, LIMITE_TEXTO_EXTRAIDO)
+  }
+  if (formato === 'pdf') {
+    // pdf-parse v2 puxa pdfjs-dist (só ESM). Sob Jest o transformIgnore-
+    // Patterns da config o compila para CJS; no servidor Next o import
+    // dinâmico resolve nativamente.
+    const { PDFParse } = await import('pdf-parse')
+    const parser = new PDFParse({ data: Buffer.from(bytes) })
+    try {
+      // No máximo 10 páginas e 10 mil caracteres — o que ocorrer primeiro.
+      const resultado = await parser.getText({ first: 10 })
+      return resultado.text.trim().slice(0, LIMITE_TEXTO_EXTRAIDO) || null
+    } finally {
+      await parser.destroy()
+    }
+  }
+  const mammoth = await import('mammoth')
+  const resultado = await mammoth.extractRawText({ buffer: Buffer.from(bytes) })
+  return resultado.value.trim().slice(0, LIMITE_TEXTO_EXTRAIDO) || null
 }
 
 const globalState = globalThis as {

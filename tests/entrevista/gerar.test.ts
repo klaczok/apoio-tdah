@@ -6,7 +6,7 @@ import { getStateStore } from '@/server/persistence'
 import { estadoVazio } from '@/server/persistence/estado'
 import { ehDiaSemana } from '@/server/rotina/modelo'
 import { valorSessao } from '@/server/entrevista/sessao'
-import { guardarDocumento, descartarDocumento } from '@/server/entrevista/documento'
+import { guardarDocumento, obterDocumento, descartarDocumento } from '@/server/entrevista/documento'
 import type { ResultadoInterpretacao } from '@/server/ia/interpretador'
 import { autenticarComo, consentirEntrevista, USUARIO_TESTE } from '../helpers/sessao'
 
@@ -14,7 +14,10 @@ process.env.PERSISTENCE_DRIVER = 'memory'
 process.env.SESSION_SECRET = 'segredo-de-teste-com-entropia-suficiente'
 process.env.INTERPRETADOR_DRIVER = 'fake'
 
-const globalState = globalThis as { __respostaIA?: ResultadoInterpretacao }
+const globalState = globalThis as {
+  __respostaIA?: ResultadoInterpretacao
+  __entradaIA?: { respostas: Record<string, unknown>; documentoTexto: string | null }
+}
 
 function respostaIA(interpretacao: Record<string, unknown>): ResultadoInterpretacao {
   return { ok: true, interpretacao }
@@ -41,6 +44,7 @@ async function estado() {
 
 beforeEach(() => {
   delete globalState.__respostaIA
+  delete globalState.__entradaIA
   delete (globalThis as { __entrevistaTeste?: string }).__entrevistaTeste
   descartarDocumento(USUARIO_TESTE)
 })
@@ -132,7 +136,7 @@ describe('POST /api/entrevista/gerar', () => {
     expect((await estado()).propostaSemanal).toBeNull()
   })
 
-  it('usa o texto extraído do documento consentido', async () => {
+  it('usa o texto extraído do documento consentido como contexto da IA', async () => {
     await sessaoComRespostas()
     guardarDocumento(USUARIO_TESTE, {
       nome: 'rotina.txt',
@@ -142,17 +146,25 @@ describe('POST /api/entrevista/gerar', () => {
       bytes: new Uint8Array(),
       texto: 'trabalho seg a sex das 9h às 15h',
     })
-    let visto: string | null = null
-    globalState.__respostaIA = (() => {
-      return respostaIA({ sono: { dormir: '23:30', acordar: '07:30' } })
-    })()
+    globalState.__respostaIA = respostaIA({ sono: { dormir: '23:30', acordar: '07:30' } })
 
-    // Espia o que o adaptador receberia: o fake ignora a entrada, então
-    // validamos indiretamente pela normalização do próprio fluxo.
     const resposta = await postGerar()
     expect(resposta.headers.get('location')).toBe('/entrevista/revisao?gerada=1')
+    expect(globalState.__entradaIA?.documentoTexto).toBe('trabalho seg a sex das 9h às 15h')
+    expect(globalState.__entradaIA?.respostas).toEqual({
+      objetivo: { selecionadas: ['estudos'], texto: 'faculdade' },
+    })
     expect((await estado()).rotina.sono?.acordar).toBe('07:30')
-    void visto
+    // Documento transitório descartado após a geração.
+    expect(obterDocumento(USUARIO_TESTE)).toBeNull()
+  })
+
+  it('funciona sem documento — contexto vai como null', async () => {
+    await sessaoComRespostas()
+    globalState.__respostaIA = respostaIA({ sono: { dormir: '22:00', acordar: '06:00' } })
+    const resposta = await postGerar()
+    expect(resposta.headers.get('location')).toBe('/entrevista/revisao?gerada=1')
+    expect(globalState.__entradaIA?.documentoTexto).toBeNull()
   })
 
   it('sem respostas na sessão, volta para as etapas', async () => {

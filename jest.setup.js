@@ -7,10 +7,23 @@ require('@testing-library/jest-dom')
 // contexto de auth.
 const { TextEncoder, TextDecoder } = require('util')
 const { webcrypto } = require('crypto')
+const v8 = require('v8')
 globalThis.TextEncoder = globalThis.TextEncoder ?? TextEncoder
 globalThis.TextDecoder = globalThis.TextDecoder ?? TextDecoder
 if (!globalThis.crypto?.subtle) {
   Object.defineProperty(globalThis, 'crypto', { value: webcrypto, configurable: true })
+}
+// jsdom não expõe structuredClone — pdfjs-dist o usa no loopback do
+// worker. v8.serialize/deserialize é fiel a TypedArrays e objetos
+// compostos (uma cópia via JSON os corromperia).
+if (typeof globalThis.structuredClone !== 'function') {
+  globalThis.structuredClone = (v) => v8.deserialize(v8.serialize(v))
+}
+// Web streams também faltam no jsdom — pdfjs-dist as usa ao extrair
+// texto de páginas.
+const webStreams = require('stream/web')
+for (const nome of ['ReadableStream', 'WritableStream', 'TransformStream']) {
+  globalThis[nome] = globalThis[nome] ?? webStreams[nome]
 }
 
 // jsdom não expõe Request/Response — stubs mínimos para dirigir

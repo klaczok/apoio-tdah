@@ -27,6 +27,22 @@ function arquivo(nome: string, tamanho = 1000, conteudo = 'texto do documento') 
   } as unknown as File
 }
 
+async function pdfReal(nome: string, texto: string): Promise<File> {
+  const { PDFDocument, StandardFonts } = await import('pdf-lib')
+  const doc = await PDFDocument.create()
+  const pagina = doc.addPage()
+  const fonte = await doc.embedFont(StandardFonts.Helvetica)
+  pagina.drawText(texto, { x: 50, y: 700, size: 12, font: fonte })
+  const bytes = await doc.save()
+  return {
+    name: nome,
+    size: bytes.length,
+    type: 'application/pdf',
+    arrayBuffer: async () =>
+      bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+  } as unknown as File
+}
+
 function postCom(form: Record<string, unknown>) {
   const dados = new Map(Object.entries(form))
   return {
@@ -113,19 +129,42 @@ describe('anexo do documento efêmero', () => {
   it('remove o documento e permite seguir sem ele', async () => {
     await sessaoComRespostas()
     await postDocumento(
-      postCom({ consentimentoDocumento: 'aceito', arquivo: arquivo('apoio.docx', 500) })
+      postCom({ consentimentoDocumento: 'aceito', arquivo: arquivo('apoio.txt', 500) })
     )
-    expect(obterDocumento(USUARIO_TESTE)?.nome).toBe('apoio.docx')
+    expect(obterDocumento(USUARIO_TESTE)?.nome).toBe('apoio.txt')
 
     const remocao = await postDocumento(postCom({ acao: 'remover' }))
     expect(remocao.headers.get('location')).toBe('/entrevista/documento')
     expect(obterDocumento(USUARIO_TESTE)).toBeNull()
   })
 
+  it('anexa um PDF real e extrai o texto para o contexto', async () => {
+    await sessaoComRespostas()
+    const resposta = await postDocumento(
+      postCom({
+        consentimentoDocumento: 'aceito',
+        arquivo: await pdfReal('apoio.pdf', 'rotina semanal'),
+      })
+    )
+    expect(resposta.headers.get('location')).toBe('/entrevista/documento?selecionado=1')
+    const doc = obterDocumento(USUARIO_TESTE)
+    expect(doc?.nome).toBe('apoio.pdf')
+    expect(doc?.texto).toContain('rotina semanal')
+  })
+
+  it('falha de extração devolve erro factual e nada fica retido', async () => {
+    await sessaoComRespostas()
+    const resposta = await postDocumento(
+      postCom({ consentimentoDocumento: 'aceito', arquivo: arquivo('quebrado.pdf', 900) })
+    )
+    expect(resposta.headers.get('location')).toBe('/entrevista/documento?erro=extracao')
+    expect(obterDocumento(USUARIO_TESTE)).toBeNull()
+  })
+
   it('mostra o estado de documento selecionado com opção de remover', async () => {
     await sessaoComRespostas()
     await postDocumento(
-      postCom({ consentimentoDocumento: 'aceito', arquivo: arquivo('apoio.pdf', 900) })
+      postCom({ consentimentoDocumento: 'aceito', arquivo: await pdfReal('apoio.pdf', 'rotina') })
     )
     render(await DocumentoPage({ searchParams: Promise.resolve({ selecionado: '1' }) }))
     expect(screen.getByText('apoio.pdf')).toBeInTheDocument()
