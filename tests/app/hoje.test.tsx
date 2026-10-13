@@ -178,18 +178,28 @@ describe('foco diário', () => {
   })
 
   it('mostra o foco do momento com leitura factual', async () => {
-    const instancia = await comDiaHoje()
-    const comDepois = adicionarTarefa(
-      instancia,
-      { titulo: 'Leitura', categoria: 'pessoal', inicio: '23:30', fim: '23:55' },
-      new Date()
-    )
-    await salvarDia(comDepois)
+    // Congela o relógio ao meio-dia de hoje: o bloco de 11h–13h está
+    // sempre "em andamento", independente do horário real da execução.
+    jest.useFakeTimers()
+    const meioDia = new Date()
+    meioDia.setHours(12, 0, 0, 0)
+    jest.setSystemTime(meioDia)
+    try {
+      const instancia = await comDiaHoje()
+      const comDepois = adicionarTarefa(
+        instancia,
+        { titulo: 'Leitura', categoria: 'pessoal', inicio: '11:00', fim: '13:00' },
+        new Date()
+      )
+      await salvarDia(comDepois)
 
-    await renderizar()
+      await renderizar()
 
-    const foco = screen.getByRole('region', { name: /foco do momento/i })
-    expect(foco).toHaveTextContent(/em andamento|próximo passo/i)
+      const foco = screen.getByRole('region', { name: /foco do momento/i })
+      expect(foco).toHaveTextContent(/em andamento|próximo passo/i)
+    } finally {
+      jest.useRealTimers()
+    }
   })
 
   it('destaca até três prioridades do dia', async () => {
@@ -205,22 +215,31 @@ describe('foco diário', () => {
   })
 
   it('item em andamento exibe progresso temporal factual', async () => {
-    const instancia = await comDiaHoje()
-    // Força o item a cobrir o horário atual, seja ele qual for.
-    const ajustada = {
-      ...instancia,
-      itens: instancia.itens.map((i, ix) =>
-        ix === 0 ? { ...i, inicio: '00:05', fim: '23:59' } : i
-      ),
+    // Mesmo congelamento do teste anterior: 23h59 real já passaria do
+    // fim fixo do bloco.
+    jest.useFakeTimers()
+    const meioDia = new Date()
+    meioDia.setHours(12, 0, 0, 0)
+    jest.setSystemTime(meioDia)
+    try {
+      const instancia = await comDiaHoje()
+      const ajustada = {
+        ...instancia,
+        itens: instancia.itens.map((i, ix) =>
+          ix === 0 ? { ...i, inicio: '00:05', fim: '23:59' } : i
+        ),
+      }
+      await salvarDia(ajustada)
+
+      await renderizar()
+
+      const foco = screen.getByRole('region', { name: /foco do momento/i })
+      expect(foco).toHaveTextContent(/em andamento/i)
+      expect(foco).toHaveTextContent(/do bloco decorrido/i)
+      expect(screen.getByRole('progressbar')).toBeInTheDocument()
+    } finally {
+      jest.useRealTimers()
     }
-    await salvarDia(ajustada)
-
-    await renderizar()
-
-    const foco = screen.getByRole('region', { name: /foco do momento/i })
-    expect(foco).toHaveTextContent(/em andamento/i)
-    expect(foco).toHaveTextContent(/do bloco decorrido/i)
-    expect(screen.getByRole('progressbar')).toBeInTheDocument()
   })
 })
 
