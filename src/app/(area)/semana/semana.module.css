@@ -428,8 +428,107 @@
   font-size: var(--texto-sm);
 }
 
+/* Leitura móvel: um dia por vez com seletor horizontal de datas e
+   controles explícitos — escondida no desktop, onde a grade governa. */
+.agendaMovel {
+  display: none;
+}
+
+.seletorContexto {
+  margin: 0 0 var(--espaco-xs);
+  color: var(--texto-secundario);
+  font-size: var(--texto-xs);
+}
+
+.seletorLista {
+  display: flex;
+  gap: var(--espaco-2xs);
+  margin: 0;
+  padding: 0 0 var(--espaco-xs);
+  overflow-x: auto;
+  list-style: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.diaChip {
+  display: flex;
+  min-width: 48px;
+  min-height: 48px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: var(--espaco-2xs) var(--espaco-xs);
+  color: var(--texto-primario);
+  font-size: var(--texto-xs);
+  text-decoration: none;
+  background: var(--superficie-cartao);
+  border: 1px solid var(--borda-sutil);
+  border-radius: var(--raio-md);
+}
+
+.diaChipAtivo {
+  font-weight: 700;
+  border: 2px solid var(--acao-primaria);
+}
+
+.diaChipHoje b {
+  text-decoration: underline;
+}
+
+.navDia {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--espaco-sm);
+  margin: var(--espaco-sm) 0;
+}
+
+.navDia a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--espaco-md);
+  color: var(--acao-primaria);
+  font-size: var(--texto-sm);
+  font-weight: 700;
+  text-decoration: none;
+  border: 1px solid var(--acao-secundaria-borda);
+  border-radius: var(--raio-pill);
+}
+
+.diaMovelTitulo {
+  margin: var(--espaco-sm) 0;
+  font-family: var(--fonte-titulo);
+  font-size: var(--texto-lg);
+}
+
+.diaMovel {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  height: 560px;
+  background: var(--superficie-cartao);
+  border: 1px solid var(--borda-sutil);
+  border-radius: var(--raio-lg);
+}
+
+.diaMovelCarga {
+  margin: var(--espaco-xs) 0 0;
+  color: var(--texto-secundario);
+  font-size: var(--texto-sm);
+}
+
 @media (max-width: 820px) {
   .container {
     padding: var(--espaco-lg) var(--espaco-sm);
+    padding-bottom: calc(88px + env(safe-area-inset-bottom));
+  }
+
+  .gradeScroll,
+  .detalhesDia {
+    display: none;
+  }
+
+  .agendaMovel {
+    display: block;
   }
 }

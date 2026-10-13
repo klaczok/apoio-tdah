@@ -32,7 +32,7 @@ import { AjusteItem } from '@/app/_components/ajuste-item'
 export const dynamic = 'force-dynamic'
 
 type Props = {
-  searchParams: Promise<{ erro?: string; salvo?: string; semana?: string }>
+  searchParams: Promise<{ erro?: string; salvo?: string; semana?: string; dia?: string }>
 }
 
 const ROTULO_TIPO: Record<TipoBloco, string> = {
@@ -188,6 +188,96 @@ function DetalheDia({ resumo, hoje }: { resumo: DiaResumo; hoje: string }) {
   )
 }
 
+
+// Conteúdo interno de uma coluna temporal — compartilhado pela grade de
+// sete dias (desktop) e pela coluna única do dia selecionado (celular).
+type Coluna = ReturnType<typeof projetarColuna>
+
+function ConteudoColuna({
+  resumo: d,
+  coluna,
+  ehHoje,
+  agoraPct,
+  hoje,
+}: {
+  resumo: DiaResumo
+  coluna: Coluna
+  ehHoje: boolean
+  agoraPct: number | null
+  hoje: string
+}) {
+  return (
+    <>
+      {ehHoje && agoraPct !== null && (
+        <div
+          className={styles.agora}
+          style={{ ['--y' as string]: `${agoraPct}%` }}
+          role="presentation"
+        >
+          <span className="sr-only">agora, {minutosParaHora(horaAgoraMin())}</span>
+        </div>
+      )}
+      {coluna.lacunas.map((l, i) => (
+        <div
+          key={`livre-${i}`}
+          className={styles.livre}
+          style={
+            {
+              ['--topo' as string]: `${l.topoPct}%`,
+              ['--altura' as string]: `${l.alturaPct}%`,
+            }
+          }
+        >
+          <span className="sr-only">Espaço livre {textoLacuna(l)}</span>
+        </div>
+      ))}
+      {coluna.blocos.map((b) => {
+        const categoria =
+          d.instancia?.itens.find((i) => i.id === b.id)?.categoria ??
+          d.instancia?.tarefas.find((t) => t.id === b.id)?.categoria ??
+          'pessoal'
+        const ajustavel = Boolean(d.instancia && !d.instancia.confirmadaEm && d.data >= hoje)
+        const fonte =
+          d.instancia?.itens.find((i) => i.id === b.id) ??
+          d.instancia?.tarefas.find((t) => t.id === b.id)
+        return (
+          <details
+            key={b.id}
+            className={`${styles.evento} ${b.tipo === 'fixo' ? styles.tipoFixo : ''} ${b.tipo === 'tarefa' ? styles.tipoTarefa : ''} ${b.tipo === 'margem' ? styles.tipoMargem : ''} ${b.sobreposto ? styles.sobreposto : ''}`}
+            data-categoria={categoria}
+            aria-label={`${b.titulo}, ${horarioParaTexto(b.inicio, b.fim)}, ${ROTULOS_CATEGORIA[categoria]}, ${ROTULO_TIPO[b.tipo]}${b.sobreposto ? ', sobreposto a outro item' : ''}`}
+            style={
+              {
+                ['--topo' as string]: `${b.topoPct}%`,
+                ['--altura' as string]: `${b.alturaPct}%`,
+              }
+            }
+          >
+            <summary>
+              <b>{b.titulo}</b>
+              <span>
+                {horarioParaTexto(b.inicio, b.fim)} · {ROTULO_TIPO[b.tipo]}
+              </span>
+            </summary>
+            <div className={styles.detalheEvento}>
+              <p>
+                {horarioParaTexto(b.inicio, b.fim)} · {ROTULOS_CATEGORIA[categoria]} ·{' '}
+                {ROTULO_TIPO[b.tipo]}
+              </p>
+              {ajustavel && fonte && <AjusteItem item={fonte} data={d.data} volta="semana" />}
+            </div>
+          </details>
+        )
+      })}
+      {coluna.semHorario.length > 0 && (
+        <p className={styles.semHorario} title="Horário a confirmar">
+          {coluna.semHorario.map((i) => i.titulo).join(' · ')} — a confirmar
+        </p>
+      )}
+    </>
+  )
+}
+
 export default async function SemanaPage({ searchParams }: Props) {
   const params = await searchParams
   const hoje = dataCivilHoje()
@@ -251,6 +341,20 @@ export default async function SemanaPage({ searchParams }: Props) {
     })
   }
   const faixaHoraPct = (120 / (janela.fimMin - janela.inicioMin)) * 100
+
+  // Dia selecionado na leitura móvel: parâmetro válido dentro da semana
+  // exibida; senão, hoje quando faz parte dela, ou a segunda-feira.
+  const diaSel =
+    params.dia && datas.includes(params.dia)
+      ? params.dia
+      : datas.includes(hoje)
+        ? hoje
+        : segunda
+  const indiceSel = datas.indexOf(diaSel)
+  const diaAnterior = indiceSel > 0 ? datas[indiceSel - 1]! : null
+  const diaProximo = indiceSel < datas.length - 1 ? datas[indiceSel + 1]! : null
+  const colunaSel = colunas.find((c) => c.resumo.data === diaSel) ?? null
+  const diasComItens = colunas.filter((c) => c.coluna.blocos.length > 0).length
 
   const maiorCarga = colunas.reduce<(typeof colunas)[number] | null>(
     (acc, c) => (!acc || c.coluna.ocupadoMin > acc.coluna.ocupadoMin ? c : acc),
@@ -342,81 +446,117 @@ export default async function SemanaPage({ searchParams }: Props) {
                     className={`${styles.coluna} ${fds ? styles.colunaFds : ''} ${ehHoje ? styles.colunaHoje : ''}`}
                     aria-label={`${ROTULOS_DIA[d.diaSemana]} ${dataCivilParaTexto(d.data)}${ehHoje ? ', hoje' : ''}`}
                   >
-                    {ehHoje && agoraPct !== null && (
-                      <div
-                        className={styles.agora}
-                        style={{ ['--y' as string]: `${agoraPct}%` }}
-                        role="presentation"
-                      >
-                        <span className="sr-only">agora, {minutosParaHora(horaAgoraMin())}</span>
-                      </div>
-                    )}
-                    {coluna.lacunas.map((l, i) => (
-                      <div
-                        key={`livre-${i}`}
-                        className={styles.livre}
-                        style={
-                          {
-                            ['--topo' as string]: `${l.topoPct}%`,
-                            ['--altura' as string]: `${l.alturaPct}%`,
-                          }
-                        }
-                      >
-                        <span className="sr-only">Espaço livre {textoLacuna(l)}</span>
-                      </div>
-                    ))}
-                    {coluna.blocos.map((b) => {
-                      const categoria =
-                        d.instancia?.itens.find((i) => i.id === b.id)?.categoria ??
-                        d.instancia?.tarefas.find((t) => t.id === b.id)?.categoria ??
-                        'pessoal'
-                      const ajustavel = Boolean(
-                        d.instancia && !d.instancia.confirmadaEm && d.data >= hoje
-                      )
-                      const fonte =
-                        d.instancia?.itens.find((i) => i.id === b.id) ??
-                        d.instancia?.tarefas.find((t) => t.id === b.id)
-                      return (
-                        <details
-                          key={b.id}
-                          className={`${styles.evento} ${b.tipo === 'fixo' ? styles.tipoFixo : ''} ${b.tipo === 'tarefa' ? styles.tipoTarefa : ''} ${b.tipo === 'margem' ? styles.tipoMargem : ''} ${b.sobreposto ? styles.sobreposto : ''}`}
-                          data-categoria={categoria}
-                          aria-label={`${b.titulo}, ${horarioParaTexto(b.inicio, b.fim)}, ${ROTULOS_CATEGORIA[categoria]}, ${ROTULO_TIPO[b.tipo]}${b.sobreposto ? ', sobreposto a outro item' : ''}`}
-                          style={
-                            {
-                              ['--topo' as string]: `${b.topoPct}%`,
-                              ['--altura' as string]: `${b.alturaPct}%`,
-                            }
-                          }
-                        >
-                          <summary>
-                            <b>{b.titulo}</b>
-                            <span>
-                              {horarioParaTexto(b.inicio, b.fim)} · {ROTULO_TIPO[b.tipo]}
-                            </span>
-                          </summary>
-                          <div className={styles.detalheEvento}>
-                            <p>
-                              {horarioParaTexto(b.inicio, b.fim)} · {ROTULOS_CATEGORIA[categoria]} ·{' '}
-                              {ROTULO_TIPO[b.tipo]}
-                            </p>
-                            {ajustavel && fonte && (
-                              <AjusteItem item={fonte} data={d.data} volta="semana" />
-                            )}
-                          </div>
-                        </details>
-                      )
-                    })}
-                    {coluna.semHorario.length > 0 && (
-                      <p className={styles.semHorario} title="Horário a confirmar">
-                        {coluna.semHorario.map((i) => i.titulo).join(' · ')} — a confirmar
-                      </p>
-                    )}
+                    <ConteudoColuna resumo={d} coluna={coluna} ehHoje={ehHoje} agoraPct={agoraPct} hoje={hoje} />
                   </div>
                 )
               })}
             </div>
           </div>
+
+          {/* Celular: um dia por vez, mesma projeção temporal — nenhum
+              modelo paralelo. O seletor é navegação por links, sem gesto. */}
+          <section className={styles.agendaMovel} aria-label="Agenda do dia selecionado">
+            <nav className={styles.seletorDias} aria-label="Escolher dia da semana">
+              <p className={styles.seletorContexto}>
+                {diasComItens === 0
+                  ? '7 dias, nenhum com itens'
+                  : `7 dias, ${diasComItens} com itens`}
+              </p>
+              <ul className={styles.seletorLista}>
+                {colunas.map(({ resumo: d, coluna }) => {
+                  const selecionado = d.data === diaSel
+                  return (
+                    <li key={d.data}>
+                      <Link
+                        href={`/semana?semana=${segunda}&dia=${d.data}`}
+                        aria-current={selecionado ? 'date' : undefined}
+                        className={`${styles.diaChip} ${selecionado ? styles.diaChipAtivo : ''} ${d.data === hoje ? styles.diaChipHoje : ''}`}
+                      >
+                        <span>{ABREV_DIA[d.diaSemana]}</span>
+                        <b>{d.data.slice(8)}</b>
+                        <span className="sr-only">
+                          {dataCivilParaTexto(d.data)}
+                          {d.data === hoje ? ', hoje' : ''}
+                          {selecionado ? ', selecionado' : ''}
+                          {coluna.blocos.length === 0 ? ', sem itens' : ''}
+                        </span>
+                      </Link>
+                    </li>
+                  )
+                })}
+              </ul>
+            </nav>
+
+            <nav className={styles.navDia} aria-label="Mudar de dia">
+              {diaAnterior ? (
+                <Link href={`/semana?semana=${segunda}&dia=${diaAnterior}`}>← Dia anterior</Link>
+              ) : (
+                <span />
+              )}
+              {diaProximo && (
+                <Link href={`/semana?semana=${segunda}&dia=${diaProximo}`}>Próximo dia →</Link>
+              )}
+            </nav>
+
+            {colunaSel && (
+              <>
+                <h2 className={styles.diaMovelTitulo}>
+                  {ROTULOS_DIA[colunaSel.resumo.diaSemana]} · {dataCivilParaTexto(diaSel)}
+                  {diaSel === hoje ? ' — hoje' : ''}
+                </h2>
+                <div
+                  className={styles.diaMovel}
+                  role="group"
+                  aria-label={`Grade do dia ${dataCivilParaTexto(diaSel)}`}
+                >
+                  <div className={styles.horas} aria-hidden="true">
+                    {horasEixo.map((h) => (
+                      <span key={h.min} style={{ top: `${h.topo}%` }}>
+                        {h.rotulo}
+                      </span>
+                    ))}
+                  </div>
+                  <div
+                    className={`${styles.coluna} ${diaSel === hoje ? styles.colunaHoje : ''}`}
+                    style={{ ['--faixa-hora' as string]: `${faixaHoraPct}%` }}
+                  >
+                    <ConteudoColuna
+                      resumo={colunaSel.resumo}
+                      coluna={colunaSel.coluna}
+                      ehHoje={diaSel === hoje}
+                      agoraPct={agoraPct}
+                      hoje={hoje}
+                    />
+                  </div>
+                </div>
+                <p className={styles.diaMovelCarga}>
+                  {colunaSel.coluna.ocupadoMin > 0
+                    ? `${minutosParaTexto(colunaSel.coluna.ocupadoMin)} ocupadas`
+                    : 'Dia livre'}
+                </p>
+                {colunaSel.resumo.alertas.length > 0 && (
+                  <ul className={styles.lista} aria-label="Alertas do dia">
+                    {colunaSel.resumo.alertas.map((a, i) => (
+                      <li key={i} className={styles.item}>
+                        <span>{a.mensagem}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {colunaSel.resumo.pendencias.length > 0 && (
+                  <p>
+                    A decidir:{' '}
+                    {colunaSel.resumo.pendencias
+                      .map(
+                        (p) =>
+                          `${p.titulo} (${ROTULO_ESTADO[p.estado] ?? p.estado}${p.naoChegou ? ' — não chegou ao destino' : ''})`
+                      )
+                      .join(' · ')}
+                  </p>
+                )}
+              </>
+            )}
+          </section>
 
           <section className={styles.leitura} aria-label="Leitura da semana">
             <h2>Leitura da semana</h2>

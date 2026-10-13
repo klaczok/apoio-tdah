@@ -143,11 +143,11 @@ describe('/semana — grade temporal', () => {
     await renderizar()
 
     expect(
-      screen.getByRole('group', { name: /consulta.*10:00–10:30.*saúde.*fixo/i })
-    ).toBeInTheDocument()
+      screen.getAllByRole('group', { name: /consulta.*10:00–10:30.*saúde.*fixo/i }).length
+    ).toBeGreaterThan(0)
     expect(
-      screen.getByRole('group', { name: /violino.*flexível/i })
-    ).toBeInTheDocument()
+      screen.getAllByRole('group', { name: /violino.*flexível/i }).length
+    ).toBeGreaterThan(0)
   })
 
   it('navega entre semana anterior, atual e próxima preservando a data na rota', async () => {
@@ -212,5 +212,81 @@ describe('/semana — grade temporal', () => {
     await renderizar()
 
     expect(screen.getByText(/maior carga/i)).toBeInTheDocument()
+  })
+})
+
+describe('/semana — foco diário no celular', () => {
+  it('oferece seletor dos sete dias com o dia atual marcado', async () => {
+    await comSemana()
+
+    await renderizar()
+
+    const seletor = screen.getByRole('navigation', { name: /escolher dia/i })
+    const links = seletor.querySelectorAll('a')
+    expect(links).toHaveLength(7)
+    const hoje = dataCivilHoje()
+    const chip = seletor.querySelector(`a[aria-current="date"]`)!
+    expect(chip).toHaveAttribute('href', `/semana?semana=${diasDaSemana(hoje)[0]}&dia=${hoje}`)
+    // Contexto disponível sem depender de gesto.
+    expect(seletor).toHaveTextContent(/7 dias/i)
+  })
+
+  it('mostra um só dia por vez com conteúdo equivalente à grade', async () => {
+    const { hoje } = await comSemana()
+
+    await renderizar()
+
+    const agenda = screen.getByRole('region', { name: /agenda do dia selecionado/i })
+    // Apenas um título de dia dentro da leitura móvel.
+    expect(agenda.querySelectorAll('h2')).toHaveLength(1)
+    expect(agenda).toHaveTextContent(new RegExp(dataCivilParaTexto(hoje)))
+    // Mesmos itens da grade: horário, categoria e proteção no rótulo.
+    expect(agenda.textContent).toMatch(/consulta/i)
+    expect(agenda.textContent).toMatch(/violino/i)
+    expect(agenda).toHaveTextContent(/ocupadas|livre/i)
+  })
+
+  it('selecionar outro dia troca a data exibida sem perder a semana', async () => {
+    await comSemana()
+    const segunda = diasDaSemana(dataCivilHoje())[0]!
+    const quarta = diasDaSemana(dataCivilHoje())[2]!
+
+    await renderizar({ semana: segunda, dia: quarta })
+
+    const agenda = screen.getByRole('region', { name: /agenda do dia selecionado/i })
+    expect(agenda).toHaveTextContent(new RegExp(dataCivilParaTexto(quarta)))
+    // A semana segue na rota — os chips continuam apontando para ela.
+    const seletor = screen.getByRole('navigation', { name: /escolher dia/i })
+    expect(seletor.querySelector(`a[aria-current="date"]`)).toHaveAttribute(
+      'href',
+      `/semana?semana=${segunda}&dia=${quarta}`
+    )
+  })
+
+  it('controles explícitos de dia anterior e próximo são operáveis por link', async () => {
+    await comSemana()
+    const dias = diasDaSemana(dataCivilHoje())
+
+    await renderizar({ semana: dias[0], dia: dias[3] })
+
+    const nav = screen.getByRole('navigation', { name: /mudar de dia/i })
+    expect(
+      screen.getByRole('link', { name: /dia anterior/i })
+    ).toHaveAttribute('href', `/semana?semana=${dias[0]}&dia=${dias[2]}`)
+    expect(
+      screen.getByRole('link', { name: /próximo dia/i })
+    ).toHaveAttribute('href', `/semana?semana=${dias[0]}&dia=${dias[4]}`)
+    expect(nav).toBeInTheDocument()
+  })
+
+  it('dia fora da semana cai para hoje ou segunda sem quebrar', async () => {
+    await comSemana()
+    const dias = diasDaSemana(dataCivilHoje())
+
+    await renderizar({ dia: '1999-01-01' })
+
+    const agenda = screen.getByRole('region', { name: /agenda do dia selecionado/i })
+    const esperado = dias.includes(dataCivilHoje()) ? dataCivilHoje() : dias[0]!
+    expect(agenda).toHaveTextContent(new RegExp(dataCivilParaTexto(esperado)))
   })
 })
