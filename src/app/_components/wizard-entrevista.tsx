@@ -39,7 +39,7 @@ export function WizardEntrevista() {
         body: JSON.stringify({ respostas }),
       })
       if (!respostaHttp.ok) throw new Error('falha')
-      window.location.assign('/entrevista/revisao')
+      window.location.assign('/entrevista/documento')
     } catch {
       setEnviando(false)
       setFalha('Não foi possível registrar suas respostas agora. Tente de novo.')

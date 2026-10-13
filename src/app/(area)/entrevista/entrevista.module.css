@@ -116,3 +116,9 @@
   color: var(--texto-secundario);
   font-size: 0.9rem;
 }
+
+.formulario {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}

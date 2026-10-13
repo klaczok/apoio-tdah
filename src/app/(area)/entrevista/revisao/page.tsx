@@ -2,8 +2,9 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import ui from '@/app/_components/ui.module.css'
 import { CabecalhoPagina } from '@/app/_components/ui'
-import { storeDoUsuario } from '@/server/auth/contexto'
+import { identidadeAutenticada, storeDoUsuario } from '@/server/auth/contexto'
 import { sessaoDaEntrevista } from '@/server/entrevista/sessao'
+import { obterDocumento } from '@/server/entrevista/documento'
 import styles from '../entrevista.module.css'
 
 export const dynamic = 'force-dynamic'
@@ -22,6 +23,9 @@ export default async function RevisaoPage() {
   if (!sessao) redirect('/entrevista/consentimento')
   if (!sessao.respostas) redirect('/entrevista/etapas')
 
+  const identidade = await identidadeAutenticada()
+  const documento = identidade ? obterDocumento(identidade.usuarioId) : null
+
   return (
     <main className={styles.container}>
       <CabecalhoPagina
@@ -31,8 +35,9 @@ export default async function RevisaoPage() {
       />
       <section className={styles.cartao}>
         <p>
-          A próxima etapa gera uma proposta de semana a partir do que você contou. Você vai revisar
-          cada bloco antes de confirmar — nada entra no calendário sem o seu aceite.
+          A próxima etapa gera uma proposta de semana a partir do que você contou
+          {documento ? `, incluindo o documento “${documento.nome}”` : ''}. Você vai revisar cada
+          bloco antes de confirmar — nada entra no calendário sem o seu aceite.
         </p>
         <div className={styles.acoes}>
           <Link className={`${ui.botao} ${ui.botaoSecundario}`} href="/entrevista/etapas">
