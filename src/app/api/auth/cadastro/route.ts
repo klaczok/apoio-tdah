@@ -4,6 +4,7 @@ import { carregarConfigSessao } from '@/server/auth/config'
 import { requisicaoSegura, serializarCookieSessao } from '@/server/auth/cookies'
 import { criarTokenSessao, type ConfigSessao } from '@/server/auth/session'
 import { normalizarEmail } from '@/server/identidade/usuarios'
+import { perfilDoFormulario } from '@/server/perfil/modelo'
 
 // A falha redireciona ao cadastro com código estável e o e-mail
 // preservado (dado não sensível); a senha nunca entra na URL.
@@ -29,7 +30,10 @@ export async function POST(request: Request) {
   const senha = String(form?.get('senha') ?? '')
   const confirmacao = String(form?.get('confirmacao') ?? '')
 
-  const resultado = await cadastrarUsuario(email, senha, confirmacao)
+  // As perguntas fixas de onboarding viajam no mesmo POST: opcionais
+  // e sanitizadas no modelo — nunca voltam à URL em caso de erro.
+  const perfil = form instanceof FormData ? perfilDoFormulario(form) : undefined
+  const resultado = await cadastrarUsuario(email, senha, confirmacao, perfil)
   if (!resultado.ok) {
     const params = new URLSearchParams({ erro: resultado.erro })
     const normalizado = normalizarEmail(email)

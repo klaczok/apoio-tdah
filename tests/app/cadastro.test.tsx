@@ -7,12 +7,17 @@ function renderizar(params: { erro?: string; email?: string } = {}) {
 }
 
 describe('Página de cadastro', () => {
-  it('solicita somente e-mail, senha e confirmação', async () => {
+  it('solicita e-mail, senha, confirmação e as perguntas fixas de onboarding', async () => {
     await renderizar()
 
     expect(screen.getByLabelText(/e-mail/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/^senha$/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/confirmação/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/como podemos te chamar/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/o que te trouxe/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/o que mais pesa/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/dia típico/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/tarefas desta semana/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /criar conta/i })).toBeInTheDocument()
   })
 

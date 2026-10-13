@@ -7,6 +7,7 @@ import { getInterpretador } from '@/server/ia'
 import { getStateStore } from '@/server/persistence'
 import { gerarPropostaSemanal } from '@/server/proposta/gerar'
 import { redirecionar } from '@/server/http'
+import { descreverPerfil } from '@/server/perfil/modelo'
 
 // Geração da proposta a partir da entrevista: interpreta o material
 // consentido via adaptador de servidor, normaliza para a
@@ -21,20 +22,25 @@ export async function POST() {
   if (!sessao) return redirecionar('/entrevista/consentimento')
   if (!sessao.respostas) return redirecionar('/entrevista/etapas')
 
+  const store = await getStateStore(identidade.usuarioId)
+  const lido = await store.load()
+  if (!lido.ok) return redirecionar('/entrevista/revisao?erro=indisponivel')
+
   const documento = obterDocumento(identidade.usuarioId)
   const historico = obterHistorico(identidade.usuarioId)
   const resultado = await interpretarEntrevista(getInterpretador(), {
     historico: historico?.mensagens ?? [],
     documentoTexto: documento?.texto ?? null,
+    // O perfil de onboarding entra como fonte junto da transcrição e do
+    // documento — horários e tarefas já informados no cadastro chegam à
+    // interpretação mesmo sem terem sido repetidos na conversa.
+    perfilTexto: descreverPerfil(lido.value.dados.perfil),
   })
   if (!resultado.ok) {
     console.warn('[entrevista] geração falhou:', resultado.motivo)
     return redirecionar(`/entrevista/revisao?erro=${resultado.motivo}`)
   }
 
-  const store = await getStateStore(identidade.usuarioId)
-  const lido = await store.load()
-  if (!lido.ok) return redirecionar('/entrevista/revisao?erro=indisponivel')
   const proposta = gerarPropostaSemanal(resultado.rotina)
   const salvo = await store.save(
     { ...lido.value.dados, propostaSemanal: proposta },

@@ -12,5 +12,12 @@ export type ResultadoConversa =
   | { ok: false; motivo: 'indisponivel' | 'invalida' | 'vazia' }
 
 export interface EntrevistadorIA {
-  conversar(historico: MensagemConversa[]): Promise<ResultadoConversa>
+  /**
+   * @param contextoPerfil Texto do perfil de onboarding já respondido no
+   * cadastro — a IA não deve repetir essas perguntas.
+   */
+  conversar(
+    historico: MensagemConversa[],
+    contextoPerfil?: string | null
+  ): Promise<ResultadoConversa>
 }

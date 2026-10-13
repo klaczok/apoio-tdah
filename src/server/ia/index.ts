@@ -20,12 +20,14 @@ const interpretadorFalso: InterpretadorIA = {
 // (ou repete o valor único) e registra o histórico recebido em
 // __historicoConversaIA para as asserções dos testes.
 const entrevistadorFalso: EntrevistadorIA = {
-  async conversar(historico) {
+  async conversar(historico, contextoPerfil) {
     const global = globalThis as {
       __respostaConversaIA?: ResultadoConversa | ResultadoConversa[]
       __historicoConversaIA?: MensagemConversa[]
+      __contextoConversaIA?: string | null
     }
     global.__historicoConversaIA = historico
+    global.__contextoConversaIA = contextoPerfil ?? null
     const programada = global.__respostaConversaIA
     if (Array.isArray(programada)) return programada.shift() ?? { ok: false, motivo: 'vazia' }
     return programada ?? { ok: false, motivo: 'indisponivel' }

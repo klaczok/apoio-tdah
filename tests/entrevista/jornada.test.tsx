@@ -36,8 +36,13 @@ const regras = { rules: { 'color-contrast': { enabled: false } } }
 
 const globalState = globalThis as {
   __respostaIA?: ResultadoInterpretacao
-  __entradaIA?: { documentoTexto: string | null; historico?: { papel: string; texto: string }[] }
+  __entradaIA?: {
+    documentoTexto: string | null
+    historico?: { papel: string; texto: string }[]
+    perfilTexto?: string | null
+  }
   __respostaConversaIA?: ResultadoConversa | ResultadoConversa[]
+  __contextoConversaIA?: string | null
 }
 
 // Aplica o Set-Cookie da rota na "sessão" do teste, como o navegador
@@ -99,6 +104,7 @@ async function preparar() {
   delete globalState.__respostaIA
   delete globalState.__entradaIA
   delete globalState.__respostaConversaIA
+  delete globalState.__contextoConversaIA
   descartarDocumento(USUARIO_TESTE)
   descartarRotinaInterpretada(USUARIO_TESTE)
   descartarHistorico(USUARIO_TESTE)
@@ -251,6 +257,42 @@ describe('jornada completa da entrevista', () => {
     )
     expect(confirma.headers.get('location')).toBe('/entrevista/concluida')
     expect((await estado()).semanaAtiva).not.toBeNull()
+  })
+
+  it('o perfil de onboarding chega como contexto da conversa e da interpretação', async () => {
+    const store = await getStateStore(USUARIO_TESTE)
+    const lido = await store.load()
+    if (!lido.ok) throw new Error('store indisponível')
+    await store.save(
+      {
+        ...estadoVazio(),
+        perfil: {
+          nome: 'Ana',
+          idade: 29,
+          motivoUso: 'foco-e-procrastinacao',
+          motivoOutro: null,
+          necessidadePrincipal: 'dividir-tarefas',
+          rotinaDiaria: 'Acordo 7h, trabalho das 9h às 18h.',
+          tarefasSemana: 'Entregar relatório sexta.',
+        },
+      },
+      lido.value.version
+    )
+
+    await consentir()
+    await responder()
+    // A IA recebe o que já foi respondido no cadastro — não repete.
+    expect(globalState.__contextoConversaIA).toContain('Ana')
+    expect(globalState.__contextoConversaIA).toContain('Acordo 7h')
+
+    globalState.__respostaIA = {
+      ok: true,
+      interpretacao: { sono: { dormir: '23:00', acordar: '07:00' } },
+    }
+    expect((await postGerar()).headers.get('location')).toBe('/entrevista/revisao?gerada=1')
+    // O mesmo contexto alimenta a interpretação do calendário.
+    expect(globalState.__entradaIA?.perfilTexto).toContain('Ana')
+    expect(globalState.__entradaIA?.perfilTexto).toContain('Entregar relatório sexta')
   })
 
   it('recusar e adiar mantêm o caminho manual aberto', async () => {

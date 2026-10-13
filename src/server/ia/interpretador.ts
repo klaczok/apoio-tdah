@@ -8,6 +8,8 @@ export type EntradaInterpretacao = {
   /** Transcrição da conversa conduzida pela própria IA. */
   historico: MensagemConversa[]
   documentoTexto: string | null
+  /** Perfil de onboarding respondido no cadastro (contexto persistido). */
+  perfilTexto?: string | null
 }
 
 export type ResultadoInterpretacao =
