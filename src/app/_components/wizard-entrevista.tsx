@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import ui from './ui.module.css'
 import styles from '../(area)/entrevista/entrevista.module.css'
@@ -11,6 +12,7 @@ import { ETAPAS_ENTREVISTA, type RespostasEntrevista } from '@/server/entrevista
 // concluir, um POST grava a sessão efêmera (cookie assinado) para a
 // geração da proposta; nada toca o EstadoPrivado.
 export function WizardEntrevista() {
+  const router = useRouter()
   const [indice, setIndice] = useState(0)
   const [respostas, setRespostas] = useState<RespostasEntrevista>({})
   const [enviando, setEnviando] = useState(false)
@@ -39,7 +41,7 @@ export function WizardEntrevista() {
         body: JSON.stringify({ respostas }),
       })
       if (!respostaHttp.ok) throw new Error('falha')
-      window.location.assign('/entrevista/documento')
+      router.push('/entrevista/documento')
     } catch {
       setEnviando(false)
       setFalha('Não foi possível registrar suas respostas agora. Tente de novo.')

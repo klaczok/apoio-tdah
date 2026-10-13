@@ -57,7 +57,17 @@ process.env.SESSION_SECRET =
 // globalThis.__rotaTeste, definida pelos testes de navegação.
 jest.mock('next/navigation', () => {
   const actual = jest.requireActual('next/navigation')
-  return { ...actual, usePathname: () => globalThis.__rotaTeste ?? '/' }
+  return {
+    ...actual,
+    usePathname: () => globalThis.__rotaTeste ?? '/',
+    useRouter: () => ({
+      push: jest.fn(),
+      replace: jest.fn(),
+      back: jest.fn(),
+      refresh: jest.fn(),
+      prefetch: jest.fn(),
+    }),
+  }
 })
 
 // Sessão controlada por teste: o mock de next/headers devolve o cookie de
