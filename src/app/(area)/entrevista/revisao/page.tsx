@@ -5,6 +5,9 @@ import { Aviso, CabecalhoPagina } from '@/app/_components/ui'
 import { identidadeAutenticada, storeDoUsuario } from '@/server/auth/contexto'
 import { sessaoDaEntrevista } from '@/server/entrevista/sessao'
 import { obterDocumento } from '@/server/entrevista/documento'
+import { ROTULOS_CATEGORIA, ROTULOS_DIA, type RotinaRecorrente } from '@/server/rotina/modelo'
+import { horarioParaTexto } from '@/server/tempo'
+import type { PropostaSemanal } from '@/server/proposta/modelo'
 import styles from '../entrevista.module.css'
 
 export const dynamic = 'force-dynamic'
@@ -15,11 +18,97 @@ const ERROS: Record<string, string> = {
   indisponivel: 'A IA não está disponível agora. Você pode tentar de novo ou montar manualmente.',
   invalida: 'A resposta da IA não veio em formato utilizável. Tente de novo.',
   vazia: 'A IA não conseguiu interpretar suas respostas. Tente de novo ou monte manualmente.',
+  entrada: 'Algo nos dados não foi aceito. Revise a proposta e tente confirmar de novo.',
 }
 
-// Revisão da proposta gerada: dispara a geração via Gemini com o
-// material consentido e, em caso de falha, oferece nova tentativa e o
-// caminho manual — nunca bloqueia o produto.
+const ROTULOS_CARGA = { leve: 'leve', equilibrada: 'equilibrada', intensa: 'intensa' } as const
+
+function ResumoRotina({
+  rotina,
+  documento,
+}: {
+  rotina: RotinaRecorrente
+  documento: string | null
+}) {
+  const itens: string[] = []
+  if (rotina.sono?.acordar || rotina.sono?.dormir) {
+    itens.push(
+      `Sono: acordar ${rotina.sono.acordar ?? 'a confirmar'}, dormir ${rotina.sono.dormir ?? 'a confirmar'}`
+    )
+  }
+  if (rotina.trabalho) {
+    itens.push(
+      `Trabalho: ${rotina.trabalho.diasSemana.map((d) => ROTULOS_DIA[d]).join(', ')} — ${rotina.trabalho.horasPadrao}h por dia`
+    )
+  }
+  if (rotina.compromissos?.length) {
+    itens.push(`${rotina.compromissos.length} compromisso(s) com hora marcada`)
+  }
+  if (rotina.periodos?.length) {
+    itens.push(`${rotina.periodos.length} período(s) reservado(s)`)
+  }
+  if (rotina.preferenciaCarga) {
+    itens.push(`Carga preferida: ${ROTULOS_CARGA[rotina.preferenciaCarga]}`)
+  }
+  if (documento) itens.push(`Documento usado nesta entrevista: ${documento}`)
+
+  return (
+    <section className={styles.cartao} aria-label="Resumo da rotina compreendida">
+      <h2 className={styles.etapaTitulo}>O que a entrevista entendeu</h2>
+      {itens.length === 0 ? (
+        <p className={styles.nota}>Poucos dados por enquanto — a proposta fica enxuta.</p>
+      ) : (
+        <ul>
+          {itens.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
+
+function BlocosProposta({ proposta }: { proposta: PropostaSemanal }) {
+  return (
+    <section className={styles.cartao} aria-label="Proposta em blocos">
+      <h2 className={styles.etapaTitulo}>Sua semana proposta</h2>
+      <div className={styles.blocos}>
+        {proposta.dias.map((dia) => (
+          <div key={dia.diaSemana} className={styles.blocoDia}>
+            <h3>{ROTULOS_DIA[dia.diaSemana]}</h3>
+            {dia.sugestoes.length === 0 ? (
+              <p className={styles.nota}>Sem itens sugeridos.</p>
+            ) : (
+              <ul>
+                {dia.sugestoes.map((s) => (
+                  <li key={s.id}>
+                    <strong>{s.titulo}</strong>{' '}
+                    <span className={styles.nota}>
+                      {s.inicio && s.fim ? horarioParaTexto(s.inicio, s.fim) : 'a confirmar'} ·{' '}
+                      {ROTULOS_CATEGORIA[s.categoria]} ·{' '}
+                      {s.protecao === 'fixo' ? 'protegido' : 'flexível'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+const SUGESTOES_PRATICAS = [
+  'Comece aceitando só o que faz sentido — você ajusta ou remove cada bloco antes de confirmar.',
+  'Blocos protegidos são seus compromissos fixos; os flexíveis podem ser adaptados sem confirmação extra.',
+  'Depois de confirmar, a semana continua editável manualmente, no seu ritmo.',
+]
+
+// Revisão da proposta gerada: resumo compreendido, blocos do rascunho,
+// sugestões práticas não clínicas e as saídas — editar nos fluxos
+// existentes, refazer a entrevista ou confirmar (o que promove o
+// rascunho a SemanaAtiva e descarta todo material transitório).
 export default async function RevisaoPage({ searchParams }: Props) {
   const params = await searchParams
   const store = await storeDoUsuario()
@@ -34,7 +123,8 @@ export default async function RevisaoPage({ searchParams }: Props) {
 
   const identidade = await identidadeAutenticada()
   const documento = identidade ? obterDocumento(identidade.usuarioId) : null
-  const gerada = params.gerada === '1' && Boolean(carregado.value.dados.propostaSemanal)
+  const { rotina, propostaSemanal } = carregado.value.dados
+  const gerada = Boolean(propostaSemanal)
 
   return (
     <main className={styles.container}>
@@ -43,7 +133,7 @@ export default async function RevisaoPage({ searchParams }: Props) {
         titulo="Revisão da proposta"
         subtitulo={
           gerada
-            ? 'Sua proposta foi montada — revise antes de confirmar.'
+            ? 'Um ponto de partida, não uma decisão — nada entra no calendário sem a sua confirmação.'
             : 'Suas respostas estão registradas nesta sessão — a proposta é montada a seguir.'
         }
       />
@@ -51,21 +141,32 @@ export default async function RevisaoPage({ searchParams }: Props) {
       {params.erro && ERROS[params.erro] && <Aviso tipo="erro">{ERROS[params.erro]}</Aviso>}
 
       {gerada ? (
-        <section className={styles.cartao}>
-          <p>
-            A proposta foi gerada a partir do que você contou
-            {documento ? `, incluindo o documento “${documento.nome}”` : ''}. Revise cada bloco
-            antes de confirmar — nada entra no calendário sem o seu aceite.
-          </p>
-          <div className={styles.acoes}>
-            <Link className={`${ui.botao} ${ui.botaoPrimario}`} href="/proposta">
-              Revisar proposta
-            </Link>
-            <Link className={`${ui.botao} ${ui.botaoSecundario}`} href="/entrevista/etapas">
-              Refazer a entrevista
-            </Link>
-          </div>
-        </section>
+        <>
+          <ResumoRotina rotina={rotina} documento={documento?.nome ?? null} />
+          <BlocosProposta proposta={propostaSemanal!} />
+
+          <section className={styles.cartao} aria-label="Sugestões práticas">
+            <h2 className={styles.etapaTitulo}>Antes de confirmar</h2>
+            <ul>
+              {SUGESTOES_PRATICAS.map((s) => (
+                <li key={s}>{s}</li>
+              ))}
+            </ul>
+            <div className={styles.acoes}>
+              <form action="/api/entrevista/confirmar" method="post">
+                <button className={`${ui.botao} ${ui.botaoPrimario}`} type="submit">
+                  Confirmar proposta
+                </button>
+              </form>
+              <Link className={`${ui.botao} ${ui.botaoSecundario}`} href="/proposta">
+                Editar na proposta
+              </Link>
+              <Link className={`${ui.botao} ${ui.botaoSecundario}`} href="/entrevista/etapas">
+                Refazer a entrevista
+              </Link>
+            </div>
+          </section>
+        </>
       ) : (
         <section className={styles.cartao}>
           <p>

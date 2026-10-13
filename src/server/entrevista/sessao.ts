@@ -67,6 +67,13 @@ export function serializeConsentCookie(valor: string, options: { secure: boolean
   return parts.join('; ')
 }
 
+// Encerra a sessão efêmera: cookie imediatamente expirado.
+export function serializeClearedEntrevistaCookie(options: { secure: boolean }): string {
+  const parts = [`${ENTREVISTA_COOKIE}=`, 'Path=/', 'HttpOnly', 'SameSite=lax', 'Max-Age=0']
+  if (options.secure) parts.push('Secure')
+  return parts.join('; ')
+}
+
 // Lê a sessão de entrevista no contexto de rota/página do servidor.
 // Sem segredo ou sem assinatura válida, volta ao passo de consentimento.
 export async function sessaoDaEntrevista(): Promise<SessaoEntrevista | null> {
