@@ -22,6 +22,7 @@ function respostaOk(texto: string) {
 
 beforeEach(() => {
   process.env.GEMINI_MODEL = 'gemini-2.5-flash'
+  delete (globalThis as { __modeloGeminiVivo?: string }).__modeloGeminiVivo
 })
 
 afterEach(() => {
@@ -73,8 +74,9 @@ describe('EntrevistadorGemini', () => {
 
   it('503 persistente desiste após o backoff — sem loop infinito', async () => {
     let tentativas = 0
-    global.fetch = jest.fn(async () => {
-      tentativas++
+    global.fetch = jest.fn(async (url) => {
+      // A sondagem /models também falha — só as generateContent contam.
+      if (String(url).includes('generateContent')) tentativas++
       return {
         ok: false,
         status: 503,
@@ -85,6 +87,35 @@ describe('EntrevistadorGemini', () => {
     const resultado = await new EntrevistadorGemini('chave-teste').conversar([])
     expect(resultado).toEqual({ ok: false, motivo: 'indisponivel' })
     expect(tentativas).toBe(3)
+  }, 15_000)
+
+  it('503 persistente descobre outro modelo disponível na chave', async () => {
+    const urls: string[] = []
+    global.fetch = jest.fn(async (url) => {
+      const u = String(url)
+      urls.push(u)
+      if (u.endsWith('/models')) {
+        return {
+          ok: true,
+          json: async () => ({
+            models: [
+              { name: 'models/gemini-3.8-flash', supportedGenerationMethods: ['generateContent'] },
+              { name: 'models/gemini-3-pro', supportedGenerationMethods: ['generateContent'] },
+            ],
+          }),
+        } as unknown as Response
+      }
+      if (u.includes('gemini-3.8-flash')) return respostaOk('Olá! Vamos conversar?')
+      return {
+        ok: false,
+        status: 503,
+        text: async () => '{"error":{"status":"UNAVAILABLE"}}',
+      } as unknown as Response
+    }) as unknown as typeof fetch
+
+    const resultado = await new EntrevistadorGemini('chave-teste').conversar([])
+    expect(resultado.ok).toBe(true)
+    expect(urls.some((u) => u.includes('gemini-3.8-flash:generateContent'))).toBe(true)
   }, 15_000)
 
   it('404 sem substituto nomeado devolve indisponível', async () => {
