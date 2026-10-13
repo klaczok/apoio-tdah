@@ -1,18 +1,21 @@
-// Banco de perguntas das cinco etapas da entrevista. Vocabulário
-// acolhedor e não clínico; as opções viram rótulos na interface e
-// códigos estáveis na sessão efêmera (cookie assinado, fora do
-// EstadoPrivado).
+// Tipos compartilhados da entrevista e banco de perguntas de reserva.
+// As perguntas são formuladas pela IA (perfil de psiquiatra em primeira
+// consulta de rotina); quando ela está indisponível, o fluxo usa este
+// banco fixo — vocabulário acolhedor e não clínico — para a entrevista
+// nunca ficar bloqueada.
 
-export type EtapaEntrevista = {
+export type PerguntaEntrevista = {
   id: string
   titulo: string
   pergunta: string
-  /** true = caixas de seleção; false = escolha única. */
-  multipla: boolean
-  opcoes: { codigo: string; rotulo: string }[]
+  /** true = caixas de seleção; false = escolha única. Sem opções = texto livre. */
+  multipla?: boolean
+  opcoes?: { codigo: string; rotulo: string }[]
 }
 
-export const ETAPAS_ENTREVISTA: EtapaEntrevista[] = [
+// Banco de reserva: cinco perguntas com opções, usadas só quando a IA
+// não pode formular as perguntas da conversa.
+export const PERGUNTAS_PADRAO: PerguntaEntrevista[] = [
   {
     id: 'objetivo',
     titulo: 'Objetivo e prioridade',
@@ -90,28 +93,34 @@ export type RespostasEntrevista = Record<string, RespostaEtapa>
 
 const TAMANHO_MAX_TEXTO = 400
 
-// Sanitiza o que vem do cliente: etapas e códigos desconhecidos são
-// descartados, seleção única corta no primeiro valor e o texto aberto é
-// aparado. Tudo opcional — etapa sem resposta pode simplesmente faltar.
-export function normalizarRespostas(entrada: unknown): RespostasEntrevista {
+// Sanitiza o que vem do cliente contra as perguntas que foram
+// efetivamente feitas (geradas pela IA ou o banco de reserva):
+// perguntas e códigos desconhecidos são descartados, seleção única
+// corta no primeiro valor e o texto aberto é aparado. Tudo opcional —
+// pergunta sem resposta pode simplesmente faltar.
+export function normalizarRespostas(
+  entrada: unknown,
+  perguntas: PerguntaEntrevista[] = PERGUNTAS_PADRAO
+): RespostasEntrevista {
   const respostas: RespostasEntrevista = {}
   if (!entrada || typeof entrada !== 'object') return respostas
-  for (const etapa of ETAPAS_ENTREVISTA) {
-    const bruta = (entrada as Record<string, unknown>)[etapa.id]
+  for (const pergunta of perguntas) {
+    const bruta = (entrada as Record<string, unknown>)[pergunta.id]
     if (!bruta || typeof bruta !== 'object') continue
+    const codigosValidos = new Set((pergunta.opcoes ?? []).map((o) => o.codigo))
     const selecionadasBrutas = Array.isArray((bruta as RespostaEtapa).selecionadas)
       ? (bruta as RespostaEtapa).selecionadas
       : []
-    const validas = selecionadasBrutas.filter((c) => etapa.opcoes.some((o) => o.codigo === c))
+    const validas = selecionadasBrutas.filter((c) => codigosValidos.has(c))
     const textoBruto = (bruta as RespostaEtapa).texto
     const texto =
       typeof textoBruto === 'string' ? textoBruto.trim().slice(0, TAMANHO_MAX_TEXTO) : ''
     const resposta: RespostaEtapa = {
-      selecionadas: etapa.multipla ? validas : validas.slice(0, 1),
+      selecionadas: pergunta.multipla ? validas : validas.slice(0, 1),
       texto,
     }
     if (resposta.selecionadas.length > 0 || resposta.texto.length > 0) {
-      respostas[etapa.id] = resposta
+      respostas[pergunta.id] = resposta
     }
   }
   return respostas

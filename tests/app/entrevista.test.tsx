@@ -120,11 +120,19 @@ describe('consentimento informado', () => {
     const valor = cookie.split(`${ENTREVISTA_COOKIE}=`)[1]?.split(';')[0] ?? ''
     expect(valor).toBe(await valorConsentimento(process.env.SESSION_SECRET!))
 
-    // Simula o cookie presente e confirma que as etapas abrem.
+    // Simula o cookie presente e confirma que as etapas abrem — o
+    // wizard busca as perguntas que a IA formulou (ou o banco de
+    // reserva) antes de renderizar a primeira.
+    global.fetch = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        perguntas: [{ id: 'p1', titulo: 'T', pergunta: 'Pergunta da IA?' }],
+      }),
+    })) as unknown as typeof fetch
     consentirEntrevista(valor)
     render(await EtapasPage())
     expect(
-      screen.getByRole('progressbar', { name: /progresso da entrevista/i })
+      await screen.findByRole('progressbar', { name: /progresso da entrevista/i })
     ).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /sair e perder o progresso/i })).toBeInTheDocument()
   })

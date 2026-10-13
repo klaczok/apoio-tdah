@@ -1,16 +1,18 @@
 import type { RotinaRecorrente } from '@/server/rotina/modelo'
+import type { PerguntaEntrevista } from '@/server/ia/entrevistador'
 import { descartarDocumento } from './documento'
 
-// Rotina interpretada pela IA: material transitório como o documento —
-// vive só na memória do processo, indexada pelo usuário da sessão, com
-// vida curta. A rotina interpretada NÃO entra no EstadoPrivado na
-// geração: só a confirmação humana a promove (e aí junto da
-// SemanaAtiva). Abandono ou saída descarta tudo — uma rotina montada
-// manualmente nunca é sobrescrita antes do aceite.
+// Material transitório da entrevista — rotina interpretada e perguntas
+// formuladas pela IA vivem só na memória do processo, indexadas pelo
+// usuário da sessão, com vida curta. A rotina interpretada NÃO entra no
+// EstadoPrivado na geração: só a confirmação humana a promove (e aí
+// junto da SemanaAtiva). Abandono ou saída descarta tudo — uma rotina
+// montada manualmente nunca é sobrescrita antes do aceite.
 const TTL_MATERIAL_MS = 30 * 60 * 1000
 
 const estadoGlobal = globalThis as {
   __rotinasEntrevista?: Map<string, { rotina: RotinaRecorrente; expira: number }>
+  __perguntasEntrevista?: Map<string, { perguntas: PerguntaEntrevista[]; expira: number }>
 }
 
 function mapa() {
@@ -35,9 +37,35 @@ export function descartarRotinaInterpretada(usuarioId: string): void {
   mapa().delete(usuarioId)
 }
 
-// Descarte total do material transitório da entrevista — documento e
-// rotina interpretada — nos caminhos de confirmação, saída e abandono.
+// As perguntas geradas pela IA ficam guardadas por usuário para que
+// "refazer" reencontre as mesmas perguntas e as respostas já dadas.
+function mapaPerguntas() {
+  return (estadoGlobal.__perguntasEntrevista ??= new Map())
+}
+
+export function guardarPerguntas(usuarioId: string, perguntas: PerguntaEntrevista[]): void {
+  mapaPerguntas().set(usuarioId, { perguntas, expira: Date.now() + TTL_MATERIAL_MS })
+}
+
+export function obterPerguntas(usuarioId: string): PerguntaEntrevista[] | null {
+  const entrada = mapaPerguntas().get(usuarioId)
+  if (!entrada) return null
+  if (entrada.expira < Date.now()) {
+    mapaPerguntas().delete(usuarioId)
+    return null
+  }
+  return entrada.perguntas
+}
+
+export function descartarPerguntas(usuarioId: string): void {
+  mapaPerguntas().delete(usuarioId)
+}
+
+// Descarte total do material transitório da entrevista — documento,
+// perguntas e rotina interpretada — nos caminhos de confirmação, saída
+// e abandono.
 export function descartarMaterial(usuarioId: string): void {
   descartarDocumento(usuarioId)
   descartarRotinaInterpretada(usuarioId)
+  descartarPerguntas(usuarioId)
 }

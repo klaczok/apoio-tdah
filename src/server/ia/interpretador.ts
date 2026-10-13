@@ -1,4 +1,5 @@
 import type { RespostasEntrevista } from '@/entrevista/etapas'
+import type { PerguntaEntrevista } from './entrevistador'
 
 // Contrato do interpretador de IA: recebe apenas material consentido da
 // sessão efêmera e devolve uma interpretação estruturada (JSON) que a
@@ -6,6 +7,8 @@ import type { RespostasEntrevista } from '@/entrevista/etapas'
 // diretamente na RotinaRecorrente nem no EstadoPrivado.
 export type EntradaInterpretacao = {
   respostas: RespostasEntrevista
+  /** Perguntas que a IA formulou — dão contexto às respostas livres. */
+  perguntas?: Pick<PerguntaEntrevista, 'id' | 'titulo' | 'pergunta'>[] | null
   documentoTexto: string | null
 }
 
