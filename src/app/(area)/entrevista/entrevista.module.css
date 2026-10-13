@@ -54,3 +54,65 @@
   height: 100%;
   background: var(--acao-primaria);
 }
+
+.etapaTitulo {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.grupo {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.grupo legend {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  padding: 0;
+}
+
+.opcao {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--acao-secundaria-borda);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.opcao:has(input:checked) {
+  border-color: var(--acao-primaria);
+  background: var(--superficie-suave);
+}
+
+.opcao input {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.textoLivre {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.95rem;
+  color: var(--texto-secundario);
+}
+
+.textoLivre textarea {
+  font: inherit;
+  padding: 0.6rem;
+  border: 1px solid var(--acao-secundaria-borda);
+  border-radius: 8px;
+  background: var(--superficie-cartao);
+  color: var(--texto-primario);
+}
+
+.sair {
+  color: var(--texto-secundario);
+  font-size: 0.9rem;
+}
