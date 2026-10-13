@@ -1,7 +1,9 @@
 import type { EntradaInterpretacao, InterpretadorIA, ResultadoInterpretacao } from './interpretador'
 import type { EntrevistadorIA, MensagemConversa, ResultadoConversa } from './entrevistador'
 
-const MODELO_PADRAO = 'gemini-2.5-flash'
+// Modelo atual da API — quando o Google aposenta uma versão, a
+// resposta 404 já indica a substituta e os logs `[ia/gemini]` a expõem.
+const MODELO_PADRAO = 'gemini-3.8-flash'
 const TIMEOUT_MS = 15_000
 const SINAL_PRONTO = '[[PRONTO]]'
 
@@ -18,36 +20,52 @@ type Chamada =
   { ok: true; texto: string } | { ok: false; motivo: 'indisponivel' | 'invalida' | 'vazia' }
 
 // Chamada única ao generateContent. Os logs registram apenas status e
-// motivo — nunca a chave, o prompt ou o conteúdo da conversa.
+// motivo — nunca a chave, o prompt ou o conteúdo da conversa. Quando o
+// Google aposenta um modelo, o 404 já nomeia a substituta: retentamos
+// uma vez com ela — uma GEMINI_MODEL desatualizada se autocorrige.
 async function chamar(apiKey: string | undefined, prompt: string): Promise<Chamada> {
   if (!apiKey) {
     console.warn('[ia/gemini] GEMINI_API_KEY ausente — entrevista por IA indisponível')
     return { ok: false, motivo: 'indisponivel' }
   }
 
-  let resposta: Response
-  try {
-    resposta = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${modelo()}:generateContent`,
-      {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-goog-api-key': apiKey,
-        },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-        }),
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-      }
-    )
-  } catch (erro) {
-    console.warn(
-      '[ia/gemini] requisição falhou:',
-      erro instanceof Error ? erro.message : String(erro)
-    )
-    return { ok: false, motivo: 'indisponivel' }
+  const tentar = async (nomeModelo: string) => {
+    try {
+      return await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${nomeModelo}:generateContent`,
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-goog-api-key': apiKey,
+          },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+          }),
+          signal: AbortSignal.timeout(TIMEOUT_MS),
+        }
+      )
+    } catch (erro) {
+      console.warn(
+        '[ia/gemini] requisição falhou:',
+        erro instanceof Error ? erro.message : String(erro)
+      )
+      return null
+    }
   }
+
+  let resposta = await tentar(modelo())
+  if (resposta?.status === 404) {
+    const corpo = await resposta.text().catch(() => '')
+    console.warn('[ia/gemini] HTTP 404', corpo.slice(0, 300))
+    // A mensagem do Google cita o modelo substituto: "use models/X".
+    const substituto = corpo.match(/use models\/([\w.-]+)/i)?.[1]
+    if (substituto && substituto !== modelo()) {
+      console.warn(`[ia/gemini] retentando com o modelo sugerido: ${substituto}`)
+      resposta = await tentar(substituto)
+    }
+  }
+  if (!resposta) return { ok: false, motivo: 'indisponivel' }
   if (!resposta.ok) {
     const corpo = await resposta.text().catch(() => '')
     console.warn('[ia/gemini] HTTP', resposta.status, corpo.slice(0, 300))
