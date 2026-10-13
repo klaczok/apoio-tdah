@@ -6,6 +6,18 @@ export function dataCivilHoje(now = new Date(), timeZone = FUSO_PADRAO): string 
   return new Intl.DateTimeFormat('en-CA', { timeZone }).format(now)
 }
 
+// Horário atual em minutos no fuso civil do produto — base da linha de
+// "agora" e do bloco em andamento nas telas de foco diário.
+export function minutosAgora(now = new Date(), timeZone = FUSO_PADRAO): number {
+  const texto = new Intl.DateTimeFormat('pt-BR', {
+    timeZone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(now)
+  return horaParaMinutos(texto)
+}
+
 export function dataCivilAmanha(now = new Date(), timeZone = FUSO_PADRAO): string {
   const amanha = new Date(now.getTime() + 24 * 60 * 60 * 1000)
   return dataCivilHoje(amanha, timeZone)

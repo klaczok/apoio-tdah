@@ -104,7 +104,7 @@ describe('revisão do dia', () => {
 
     await renderizar()
 
-    expect(screen.getByText('Consulta')).toBeInTheDocument()
+    expect(screen.getAllByText('Consulta').length).toBeGreaterThan(0)
     expect(screen.getAllByRole('button', { name: /registrar estado/i }).length).toBeGreaterThan(0)
     expect(screen.getAllByRole('option', { name: /realizado/i }).length).toBeGreaterThan(0)
     expect(screen.getAllByRole('option', { name: /parcial/i }).length).toBeGreaterThan(0)
@@ -154,6 +154,73 @@ describe('revisão do dia', () => {
 
     expect(screen.getByText(/nenhum planejamento para hoje/i)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /planejar amanhã/i })).toBeInTheDocument()
+  })
+})
+
+describe('foco diário', () => {
+  it('apresenta data no cabeçalho e a linha do dia com estados textuais', async () => {
+    const instancia = await comDiaHoje()
+    // Uma segunda entrada distante cria a lacuna visível entre blocos.
+    const comNoite = adicionarTarefa(
+      instancia,
+      { titulo: 'Leitura', categoria: 'pessoal', inicio: '21:00', fim: '21:30' },
+      new Date()
+    )
+    await salvarDia(comNoite)
+
+    await renderizar()
+
+    expect(screen.getByText(/seu dia ·/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /linha do dia/i })).toBeInTheDocument()
+    expect(screen.getByText(/espaço livre/i)).toBeInTheDocument()
+    // Estado textual redundante, sem depender de cor.
+    expect(screen.getAllByText(/agora|em seguida|sem registro/i).length).toBeGreaterThan(0)
+  })
+
+  it('mostra o foco do momento com leitura factual', async () => {
+    const instancia = await comDiaHoje()
+    const comDepois = adicionarTarefa(
+      instancia,
+      { titulo: 'Leitura', categoria: 'pessoal', inicio: '23:30', fim: '23:55' },
+      new Date()
+    )
+    await salvarDia(comDepois)
+
+    await renderizar()
+
+    const foco = screen.getByRole('region', { name: /foco do momento/i })
+    expect(foco).toHaveTextContent(/em andamento|próximo passo/i)
+  })
+
+  it('destaca até três prioridades do dia', async () => {
+    const instancia = await comDiaHoje()
+    const comPrioridade = { ...instancia, prioridades: [instancia.itens[0].id] }
+    await salvarDia(comPrioridade as InstanciaDiaria)
+
+    await renderizar()
+
+    const secao = screen.getByRole('region', { name: /prioridades do dia/i })
+    expect(secao).toHaveTextContent(/consulta/i)
+    expect(screen.getAllByText(/prioridade/i).length).toBeGreaterThan(0)
+  })
+
+  it('item em andamento exibe progresso temporal factual', async () => {
+    const instancia = await comDiaHoje()
+    // Força o item a cobrir o horário atual, seja ele qual for.
+    const ajustada = {
+      ...instancia,
+      itens: instancia.itens.map((i, ix) =>
+        ix === 0 ? { ...i, inicio: '00:05', fim: '23:59' } : i
+      ),
+    }
+    await salvarDia(ajustada)
+
+    await renderizar()
+
+    const foco = screen.getByRole('region', { name: /foco do momento/i })
+    expect(foco).toHaveTextContent(/em andamento/i)
+    expect(foco).toHaveTextContent(/do bloco decorrido/i)
+    expect(screen.getByRole('progressbar')).toBeInTheDocument()
   })
 })
 

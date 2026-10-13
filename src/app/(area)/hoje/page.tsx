@@ -7,6 +7,8 @@ import { storeDoUsuario } from '@/server/auth/contexto'
 import { MENSAGENS_ERRO } from '@/server/persistence/mensagens'
 import { avaliarAlertas } from '@/server/dia/alertas'
 import { instanciaDoDia } from '@/server/dia/gerar'
+import { ItemNaoEncontradoError } from '@/server/rotina/modelo'
+import { ROTULOS_CATEGORIA } from '@/server/rotina/modelo'
 import {
   DESTINOS_PENDENCIA,
   ESTADOS_REVISAO,
@@ -18,7 +20,16 @@ import {
   sinteseRevisao,
   type InstanciaDiaria,
 } from '@/server/dia/modelo'
-import { dataCivilHoje, dataCivilParaTexto, ehDataCivil, somarDiasCivil } from '@/server/tempo'
+import {
+  dataCivilHoje,
+  dataCivilParaTexto,
+  ehDataCivil,
+  horaParaMinutos,
+  horarioParaTexto,
+  minutosAgora,
+  minutosParaHora,
+  somarDiasCivil,
+} from '@/server/tempo'
 
 export const dynamic = 'force-dynamic'
 
@@ -167,6 +178,31 @@ export default async function HojePage({ searchParams }: Props) {
   const instancia = carregado.ok ? carregado.value.dados.dias[hoje] : undefined
   const mensagemErro = params.erro ? MENSAGENS_ERRO[params.erro] : undefined
 
+  // Linha do dia e foco usam a projeção da semana ativa: o plano aparece
+  // mesmo antes de o dia virar instância persistida. A revisão continua
+  // exigindo a instância real — escrever é o que a materializa.
+  let diaProjetado: InstanciaDiaria | null = null
+  if (carregado.ok) {
+    try {
+      diaProjetado = instanciaDoDia(instancia, carregado.value.dados, hoje, carregado.value.version)
+    } catch (e) {
+      if (!(e instanceof ItemNaoEncontradoError)) throw e
+    }
+  }
+
+  const agoraMin = minutosAgora()
+  // Sequência temporal: só itens com horário, ordenados — os "a confirmar"
+  // ficam fora da linha, sem horário inventado.
+  const comHorario = [...(diaProjetado?.itens ?? []), ...(diaProjetado?.tarefas ?? [])]
+    .filter((i): i is typeof i & { inicio: string; fim: string } => i.inicio !== null && i.fim !== null)
+    .map((i) => ({ ...i, inicioMin: horaParaMinutos(i.inicio), fimMin: horaParaMinutos(i.fim) }))
+    .sort((a, b) => a.inicioMin - b.inicioMin)
+  const emAndamento = comHorario.find((i) => i.inicioMin <= agoraMin && agoraMin < i.fimMin)
+  const proximo = emAndamento ? null : comHorario.find((i) => i.inicioMin > agoraMin)
+  const prioridades = (diaProjetado?.prioridades ?? [])
+    .map((id) => comHorario.find((i) => i.id === id) ?? null)
+    .filter((i) => i !== null)
+
   // Prévia da troca de dia: reutiliza o cálculo de alertas do planejamento
   // sobre a instância do destino (existente ou materializada da semana
   // ativa) com a pendência incluída — sem gravar nada.
@@ -197,7 +233,11 @@ export default async function HojePage({ searchParams }: Props) {
 
   return (
     <main className={styles.container}>
-      <CabecalhoPagina titulo="Hoje" subtitulo="Você só precisa olhar para o próximo passo." />
+      <CabecalhoPagina
+        eyebrow={`Seu dia · ${dataCivilParaTexto(hoje)}`}
+        titulo="Hoje"
+        subtitulo="Você só precisa olhar para o próximo passo."
+      />
 
       {params.salvo === '1' && <Aviso tipo="sucesso">Anotação salva.</Aviso>}
       {params.revisado === '1' && <Aviso tipo="sucesso">Revisão concluída.</Aviso>}
@@ -207,6 +247,151 @@ export default async function HojePage({ searchParams }: Props) {
         <Aviso tipo="erro">
           {mensagemErro ?? 'Não foi possível carregar suas anotações agora. Tente recarregar.'}
         </Aviso>
+      )}
+
+      {(emAndamento || proximo) && (
+        <section className={styles.agora} aria-label="Foco do momento">
+          {emAndamento ? (
+            <>
+              <p className={styles.agoraEyebrow}>Em andamento</p>
+              <p className={styles.agoraTitulo}>{emAndamento.titulo}</p>
+              <p className={styles.agoraMeta}>
+                {horarioParaTexto(emAndamento.inicio, emAndamento.fim)} · termina às{' '}
+                {emAndamento.fim} ·{' '}
+                {Math.round(
+                  ((agoraMin - emAndamento.inicioMin) /
+                    (emAndamento.fimMin - emAndamento.inicioMin)) *
+                    100
+                )}
+                % do bloco decorrido
+              </p>
+              <div
+                className={styles.progresso}
+                role="progressbar"
+                aria-label="Tempo decorrido do bloco atual"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(
+                  ((agoraMin - emAndamento.inicioMin) /
+                    (emAndamento.fimMin - emAndamento.inicioMin)) *
+                    100
+                )}
+              >
+                <div
+                  className={styles.progressoBarra}
+                  style={{
+                    width: `${Math.round(
+                      ((agoraMin - emAndamento.inicioMin) /
+                        (emAndamento.fimMin - emAndamento.inicioMin)) *
+                        100
+                    )}%`,
+                  }}
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              <p className={styles.agoraEyebrow}>Próximo passo</p>
+              <p className={styles.agoraTitulo}>{proximo!.titulo}</p>
+              <p className={styles.agoraMeta}>
+                {horarioParaTexto(proximo!.inicio, proximo!.fim)}
+              </p>
+            </>
+          )}
+        </section>
+      )}
+
+      {prioridades.length > 0 && (
+        <section className={styles.prioridades} aria-label="Prioridades do dia">
+          <h2>Prioridades de hoje</h2>
+          <ul className={styles.lista}>
+            {prioridades.map((p) => (
+              <li key={p.id}>
+                {p.titulo} · {horarioParaTexto(p.inicio, p.fim)}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {comHorario.length > 0 && (
+        <section className={styles.secao} aria-labelledby="linha-titulo">
+          <h2 id="linha-titulo">Linha do dia</h2>
+          <ul className={styles.linha}>
+            {comHorario.flatMap((item, indice) => {
+              const anterior = indice > 0 ? comHorario[indice - 1]! : null
+              const folga =
+                anterior && item.inicioMin - anterior.fimMin >= 10
+                  ? [
+                      <li key={`livre-${item.id}`} className={`${styles.linhaItem} ${styles.itemLivre}`}>
+                        <time className={styles.linhaHora}>{minutosParaHora(anterior.fimMin)}</time>
+                        <i className={styles.linhaSinal} aria-hidden="true">
+                          ≈
+                        </i>
+                        <span className={styles.linhaTitulo}>
+                          Espaço livre
+                          <small>
+                            {minutosParaHora(anterior.fimMin)}–{item.inicio} · pode continuar assim
+                          </small>
+                        </span>
+                        <span className={styles.linhaEstado}>livre</span>
+                      </li>,
+                    ]
+                  : []
+              const estado = diaProjetado?.revisao.estados[item.id]
+              const margem = 'origem' in item && item.origem === 'pausa'
+              const atual = item.inicioMin <= agoraMin && agoraMin < item.fimMin
+              const passou = item.fimMin <= agoraMin
+              const rotulo = margem
+                ? 'margem'
+                : estado
+                  ? ROTULOS_ESTADO[estado]
+                  : atual
+                    ? 'agora'
+                    : passou
+                      ? 'sem registro'
+                      : 'em seguida'
+              const classe = margem
+                ? styles.itemMargem
+                : estado === 'realizado'
+                  ? styles.itemConcluido
+                  : atual
+                    ? styles.itemAtual
+                    : ''
+              const sinal = margem
+                ? '≈'
+                : estado === 'realizado'
+                  ? '✓'
+                  : atual
+                    ? '●'
+                    : '○'
+              const ehPrioridade = diaProjetado?.prioridades.includes(item.id) ?? false
+              return [
+                ...folga,
+                <li key={item.id} className={`${styles.linhaItem} ${classe}`}>
+                  <time className={styles.linhaHora}>{item.inicio}</time>
+                  <i className={styles.linhaSinal} aria-hidden="true">
+                    {sinal}
+                  </i>
+                  <span className={styles.linhaTitulo}>
+                    {item.titulo}
+                    <small>
+                      {horarioParaTexto(item.inicio, item.fim)} ·{' '}
+                      {ROTULOS_CATEGORIA[item.categoria]}
+                      {ehPrioridade && (
+                        <>
+                          {' '}
+                          · <span className={styles.prioridade}>prioridade</span>
+                        </>
+                      )}
+                    </small>
+                  </span>
+                  <span className={styles.linhaEstado}>{rotulo}</span>
+                </li>,
+              ]
+            })}
+          </ul>
+        </section>
       )}
 
       {instancia ? (
