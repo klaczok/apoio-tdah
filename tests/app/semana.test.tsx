@@ -145,9 +145,7 @@ describe('/semana — grade temporal', () => {
     expect(
       screen.getAllByRole('group', { name: /consulta.*10:00–10:30.*saúde.*fixo/i }).length
     ).toBeGreaterThan(0)
-    expect(
-      screen.getAllByRole('group', { name: /violino.*flexível/i }).length
-    ).toBeGreaterThan(0)
+    expect(screen.getAllByRole('group', { name: /violino.*flexível/i }).length).toBeGreaterThan(0)
   })
 
   it('navega entre semana anterior, atual e próxima preservando a data na rota', async () => {
@@ -163,12 +161,14 @@ describe('/semana — grade temporal', () => {
 
     await renderizar()
 
-    expect(
-      screen.getByRole('link', { name: /semana anterior/i })
-    ).toHaveAttribute('href', `/semana?semana=${anterior}`)
-    expect(
-      screen.getByRole('link', { name: /próxima semana/i })
-    ).toHaveAttribute('href', `/semana?semana=${proxima}`)
+    expect(screen.getByRole('link', { name: /semana anterior/i })).toHaveAttribute(
+      'href',
+      `/semana?semana=${anterior}`
+    )
+    expect(screen.getByRole('link', { name: /próxima semana/i })).toHaveAttribute(
+      'href',
+      `/semana?semana=${proxima}`
+    )
     // Na semana corrente o atalho "Esta semana" não precisa aparecer.
     expect(screen.queryByRole('link', { name: /esta semana/i })).not.toBeInTheDocument()
   })
@@ -270,12 +270,14 @@ describe('/semana — foco diário no celular', () => {
     await renderizar({ semana: dias[0], dia: dias[3] })
 
     const nav = screen.getByRole('navigation', { name: /mudar de dia/i })
-    expect(
-      screen.getByRole('link', { name: /dia anterior/i })
-    ).toHaveAttribute('href', `/semana?semana=${dias[0]}&dia=${dias[2]}`)
-    expect(
-      screen.getByRole('link', { name: /próximo dia/i })
-    ).toHaveAttribute('href', `/semana?semana=${dias[0]}&dia=${dias[4]}`)
+    expect(screen.getByRole('link', { name: /dia anterior/i })).toHaveAttribute(
+      'href',
+      `/semana?semana=${dias[0]}&dia=${dias[2]}`
+    )
+    expect(screen.getByRole('link', { name: /próximo dia/i })).toHaveAttribute(
+      'href',
+      `/semana?semana=${dias[0]}&dia=${dias[4]}`
+    )
     expect(nav).toBeInTheDocument()
   })
 

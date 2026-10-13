@@ -623,7 +623,9 @@ export default async function AmanhaPage({ searchParams }: Props) {
       {instancia && (
         <>
           {instancia.confirmadaEm && (
-            <Aviso tipo="info">Dia confirmado em {dataHoraParaTexto(instancia.confirmadaEm)}.</Aviso>
+            <Aviso tipo="info">
+              Dia confirmado em {dataHoraParaTexto(instancia.confirmadaEm)}.
+            </Aviso>
           )}
           <PrioridadesDoDia instancia={instancia} />
           {params.substituir && editavel && (

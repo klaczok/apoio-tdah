@@ -12,15 +12,9 @@ const EMAIL_SIMPLES = /^[^\s@]+@[^\s@]+$/
 // Códigos estáveis devolvidos na query do cadastro — nunca carregam
 // senha nem dados da conta. A página associa cada código ao seu campo.
 export type ErroCadastro =
-  | 'email-invalido'
-  | 'senha-fraca'
-  | 'confirmacao-divergente'
-  | 'email-em-uso'
-  | 'indisponivel'
+  'email-invalido' | 'senha-fraca' | 'confirmacao-divergente' | 'email-em-uso' | 'indisponivel'
 
-export type ResultadoCadastro =
-  | { ok: true; usuarioId: string }
-  | { ok: false; erro: ErroCadastro }
+export type ResultadoCadastro = { ok: true; usuarioId: string } | { ok: false; erro: ErroCadastro }
 
 // Cadastro aberto: cria a conta persistida e seu EstadoPrivado vazio.
 // A conta nasce antes do estado; como a leitura de uma linha ausente já

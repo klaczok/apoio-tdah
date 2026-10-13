@@ -152,7 +152,9 @@ describe('POST /api/auth/cadastro', () => {
   it('não expõe senha, hash ou segredo em nenhuma resposta', async () => {
     for (const resposta of [
       await POST(requisicaoCadastro({ email: EMAIL, senha: SENHA, confirmacao: SENHA })),
-      await POST(requisicaoCadastro({ email: EMAIL, senha: 'x'.repeat(9), confirmacao: 'y'.repeat(9) })),
+      await POST(
+        requisicaoCadastro({ email: EMAIL, senha: 'x'.repeat(9), confirmacao: 'y'.repeat(9) })
+      ),
     ]) {
       const conteudo = [
         localizacao(resposta),

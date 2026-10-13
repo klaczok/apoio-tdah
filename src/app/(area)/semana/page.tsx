@@ -164,7 +164,8 @@ function DetalheDia({ resumo, hoje }: { resumo: DiaResumo; hoje: string }) {
               <li key={t.id} className={styles.item}>
                 <span>
                   {horarioParaTexto(t.inicio, t.fim)} · {t.titulo} ·{' '}
-                  {ROTULOS_CATEGORIA[t.categoria]} · <span className={styles.tagTarefa}>tarefa</span>
+                  {ROTULOS_CATEGORIA[t.categoria]} ·{' '}
+                  <span className={styles.tagTarefa}>tarefa</span>
                 </span>
                 {ajustavel && <AjusteItem item={t} data={resumo.data} volta="semana" />}
               </li>
@@ -195,7 +196,6 @@ function DetalheDia({ resumo, hoje }: { resumo: DiaResumo; hoje: string }) {
     </section>
   )
 }
-
 
 // Conteúdo interno de uma coluna temporal — compartilhado pela grade de
 // sete dias (desktop) e pela coluna única do dia selecionado (celular).
@@ -229,12 +229,10 @@ function ConteudoColuna({
         <div
           key={`livre-${i}`}
           className={styles.livre}
-          style={
-            {
-              ['--topo' as string]: `${l.topoPct}%`,
-              ['--altura' as string]: `${l.alturaPct}%`,
-            }
-          }
+          style={{
+            ['--topo' as string]: `${l.topoPct}%`,
+            ['--altura' as string]: `${l.alturaPct}%`,
+          }}
         >
           <span className="sr-only">Espaço livre {textoLacuna(l)}</span>
         </div>
@@ -254,12 +252,10 @@ function ConteudoColuna({
             className={`${styles.evento} ${b.tipo === 'fixo' ? styles.tipoFixo : ''} ${b.tipo === 'tarefa' ? styles.tipoTarefa : ''} ${b.tipo === 'margem' ? styles.tipoMargem : ''} ${b.sobreposto ? styles.sobreposto : ''}`}
             data-categoria={categoria}
             aria-label={`${b.titulo}, ${horarioParaTexto(b.inicio, b.fim)}, ${ROTULOS_CATEGORIA[categoria]}, ${ROTULO_TIPO[b.tipo]}${b.sobreposto ? ', sobreposto a outro item' : ''}`}
-            style={
-              {
-                ['--topo' as string]: `${b.topoPct}%`,
-                ['--altura' as string]: `${b.alturaPct}%`,
-              }
-            }
+            style={{
+              ['--topo' as string]: `${b.topoPct}%`,
+              ['--altura' as string]: `${b.alturaPct}%`,
+            }}
           >
             <summary>
               <b>{b.titulo}</b>
@@ -358,11 +354,7 @@ export default async function SemanaPage({ searchParams }: Props) {
   // Dia selecionado na leitura móvel: parâmetro válido dentro da semana
   // exibida; senão, hoje quando faz parte dela, ou a segunda-feira.
   const diaSel =
-    params.dia && datas.includes(params.dia)
-      ? params.dia
-      : datas.includes(hoje)
-        ? hoje
-        : segunda
+    params.dia && datas.includes(params.dia) ? params.dia : datas.includes(hoje) ? hoje : segunda
   const indiceSel = datas.indexOf(diaSel)
   const diaAnterior = indiceSel > 0 ? datas[indiceSel - 1]! : null
   const diaProximo = indiceSel < datas.length - 1 ? datas[indiceSel + 1]! : null
@@ -386,16 +378,14 @@ export default async function SemanaPage({ searchParams }: Props) {
     <main className={styles.container}>
       <h1>Semana</h1>
       <p className={styles.intro}>
-        Visão factual da semana: cada bloco mostra horário pela posição e duração pela altura.
-        Nada aqui é nota ou avaliação.
+        Visão factual da semana: cada bloco mostra horário pela posição e duração pela altura. Nada
+        aqui é nota ou avaliação.
       </p>
 
       <nav className={styles.navSemana} aria-label="Navegar entre semanas">
         <Link href={`/semana?semana=${semanaAnterior}`}>← Semana anterior</Link>
         {!semanaCorrente && <Link href="/semana">Esta semana</Link>}
-        <span className={styles.rotuloSemana}>
-          semana de {dataCivilParaTexto(segunda)}
-        </span>
+        <span className={styles.rotuloSemana}>semana de {dataCivilParaTexto(segunda)}</span>
         <Link href={`/semana?semana=${proximaSemana}`}>Próxima semana →</Link>
       </nav>
 
@@ -454,7 +444,9 @@ export default async function SemanaPage({ searchParams }: Props) {
                     <span className="sr-only">{dataCivilParaTexto(d.data)}</span>
                     {ehHoje && <span className="sr-only">(hoje)</span>}
                     <span className={styles.cabDiaCarga}>
-                      {coluna.ocupadoMin > 0 ? `${minutosParaTexto(coluna.ocupadoMin)} ocupadas` : 'livre'}
+                      {coluna.ocupadoMin > 0
+                        ? `${minutosParaTexto(coluna.ocupadoMin)} ocupadas`
+                        : 'livre'}
                     </span>
                   </div>
                 )
@@ -477,7 +469,13 @@ export default async function SemanaPage({ searchParams }: Props) {
                     className={`${styles.coluna} ${fds ? styles.colunaFds : ''} ${ehHoje ? styles.colunaHoje : ''}`}
                     aria-label={`${ROTULOS_DIA[d.diaSemana]} ${dataCivilParaTexto(d.data)}${ehHoje ? ', hoje' : ''}`}
                   >
-                    <ConteudoColuna resumo={d} coluna={coluna} ehHoje={ehHoje} agoraPct={agoraPct} hoje={hoje} />
+                    <ConteudoColuna
+                      resumo={d}
+                      coluna={coluna}
+                      ehHoje={ehHoje}
+                      agoraPct={agoraPct}
+                      hoje={hoje}
+                    />
                   </div>
                 )
               })}
