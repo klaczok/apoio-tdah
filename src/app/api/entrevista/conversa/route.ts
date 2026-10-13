@@ -7,6 +7,8 @@ import {
 } from '@/server/entrevista/sessao'
 import { guardarHistorico, obterHistorico } from '@/server/entrevista/material'
 import { getEntrevistador } from '@/server/ia'
+import { getStateStore } from '@/server/persistence'
+import { descreverPerfil } from '@/server/perfil/modelo'
 import {
   LIMITE_MENSAGENS_PESSOA,
   MARCA_ENTREVISTA_CONCLUIDA,
@@ -63,7 +65,18 @@ export async function POST(request: Request) {
     ? [...historico.mensagens, { papel: 'pessoa', texto: mensagemPessoa }]
     : historico.mensagens
 
-  const resultado = await getEntrevistador().conversar(mensagens)
+  // O perfil de onboarding vira contexto da conversa: a IA recebe o
+  // que a pessoa já respondeu no cadastro e não repete essas perguntas.
+  // Falha de leitura não bloqueia a rodada — segue sem contexto.
+  let contextoPerfil: string | null = null
+  try {
+    const lido = await (await getStateStore(identidade.usuarioId)).load()
+    if (lido.ok) contextoPerfil = descreverPerfil(lido.value.dados.perfil)
+  } catch {
+    contextoPerfil = null
+  }
+
+  const resultado = await getEntrevistador().conversar(mensagens, contextoPerfil)
   if (!resultado.ok) {
     console.warn('[entrevista] rodada da conversa falhou:', resultado.motivo)
     return Response.json({ erro: 'indisponivel' }, { status: 503 })

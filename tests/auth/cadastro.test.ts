@@ -74,11 +74,65 @@ describe('POST /api/auth/cadastro', () => {
       expect(estado.value.dados).toEqual({
         notasPorDia: {},
         rotina: expect.anything(),
+        perfil: expect.anything(),
         propostaSemanal: null,
         semanaAtiva: null,
         dias: {},
       })
     }
+  })
+
+  it('persiste o perfil de onboarding respondido no cadastro', async () => {
+    const resposta = await POST(
+      requisicaoCadastro({
+        email: EMAIL,
+        senha: SENHA,
+        confirmacao: SENHA,
+        nome: 'Ana',
+        idade: '29',
+        motivoUso: 'foco-e-procrastinacao',
+        necessidadePrincipal: 'dividir-tarefas',
+        rotinaDiaria: 'Acordo 7h, trabalho das 9h às 18h.',
+        tarefasSemana: 'Entregar relatório sexta.',
+      })
+    )
+    expect(resposta.status).toBe(303)
+
+    const usuarios = await getUserStore()
+    const conta = await usuarios.buscarPorEmail(EMAIL)
+    if (!conta.ok || !conta.value) throw new Error('conta não criada')
+
+    const store = await getStateStore(conta.value.id)
+    const estado = await store.load()
+    expect(estado.ok && estado.value.dados.perfil).toEqual({
+      nome: 'Ana',
+      idade: 29,
+      motivoUso: 'foco-e-procrastinacao',
+      motivoOutro: null,
+      necessidadePrincipal: 'dividir-tarefas',
+      rotinaDiaria: 'Acordo 7h, trabalho das 9h às 18h.',
+      tarefasSemana: 'Entregar relatório sexta.',
+    })
+  })
+
+  it('campos de perfil ausentes ou inválidos não bloqueiam o cadastro', async () => {
+    const resposta = await POST(
+      requisicaoCadastro({
+        email: EMAIL,
+        senha: SENHA,
+        confirmacao: SENHA,
+        idade: 'abc',
+        motivoUso: 'valor-inventado',
+      })
+    )
+    expect(resposta.status).toBe(303)
+
+    const usuarios = await getUserStore()
+    const conta = await usuarios.buscarPorEmail(EMAIL)
+    if (!conta.ok || !conta.value) throw new Error('conta não criada')
+    const estado = await (await getStateStore(conta.value.id)).load()
+    expect(estado.ok && estado.value.dados.perfil.idade).toBeNull()
+    expect(estado.ok && estado.value.dados.perfil.motivoUso).toBeNull()
   })
 
   it('normaliza caixa e espaços do e-mail antes de persistir e autenticar', async () => {

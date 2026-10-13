@@ -34,3 +34,25 @@
 .submit {
   margin-top: var(--espaco-md);
 }
+
+.perfil {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espaco-sm);
+  margin: var(--espaco-sm) 0 0;
+  padding: var(--espaco-md);
+  border: 1px solid var(--borda-sutil);
+  border-radius: var(--raio-lg);
+}
+
+.perfilTitulo {
+  padding: 0 var(--espaco-xs);
+  color: var(--texto-secundario);
+  font-size: var(--texto-sm);
+  font-weight: 700;
+}
+
+.perfil textarea {
+  padding-top: 10px;
+  resize: vertical;
+}

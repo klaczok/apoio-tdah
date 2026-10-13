@@ -16,7 +16,8 @@ const PROMPT_ENTREVISTA = [
   'Você é uma organizadora de rotina conduzindo a primeira conversa com uma pessoa para entender a vida dela e montar um calendário semanal realista.',
   'Conduza a conversa em português brasileiro, com acolhimento e uma pergunta por vez — você não é médica nem dá diagnóstico, só organiza rotinas.',
   'Comece se apresentando em uma frase e fazendo a primeira pergunta, buscando conhecer a pessoa antes de detalhar horários.',
-  'Ao longo da conversa, cubra: prioridades e o que mais importa agora; compromissos fixos com dias e horários; sono, refeições e autocuidado; responsabilidades que pesam e o que dificulta organizar o dia; em que período a energia está mais alta.',
+  'Se a pessoa já respondeu perguntas no cadastro, esse contexto chega em mensagem própria: trate-o como fato conhecido, confirme-o de passagem se fizer sentido e NUNCA refaça perguntas já respondidas — vá direto ao que falta para o calendário.',
+  'Ao longo da conversa, cubra o que ainda faltar de: compromissos fixos com dias e horários; sono, refeições e autocuidado; responsabilidades que pesam e o que dificulta organizar o dia; em que período a energia está mais alta.',
   'Faça perguntas de aprofundamento quando a resposta estiver vaga — não há número fixo de perguntas, mas também não prolongue além do necessário.',
   'Quando tiver informação suficiente para montar um calendário semanal coerente com a vida da pessoa, escreva uma breve mensagem de encerramento agradecendo e finalize a última linha apenas com o marcador [[PRONTO]].',
   'Responda apenas com a próxima mensagem sua, em texto corrido — sem prefixos, sem JSON.',
@@ -145,9 +146,20 @@ function jsonDoTexto(texto: string): Record<string, unknown> | null {
 export class EntrevistadorOpenRouter implements EntrevistadorIA {
   constructor(private readonly apiKey = process.env.OPENROUTER_API_KEY) {}
 
-  async conversar(historico: MensagemConversa[]): Promise<ResultadoConversa> {
+  async conversar(
+    historico: MensagemConversa[],
+    contextoPerfil?: string | null
+  ): Promise<ResultadoConversa> {
     const chamada = await chamar(this.apiKey, [
       { role: 'system', content: PROMPT_ENTREVISTA },
+      ...(contextoPerfil
+        ? [
+            {
+              role: 'system' as const,
+              content: `Informações que a pessoa já respondeu no cadastro — não pergunte de novo, use para personalizar e encurtar a conversa:\n${contextoPerfil}`,
+            },
+          ]
+        : []),
       ...paraChat(historico),
     ])
     if (!chamada.ok) return chamada
@@ -168,6 +180,7 @@ export class InterpretadorOpenRouter implements InterpretadorIA {
         .map((m) => `${m.papel === 'ia' ? 'IA' : 'Pessoa'}: ${m.texto}`)
         .join('\n')}`,
       entrada.documentoTexto ? `Documento de apoio (transcrito):\n${entrada.documentoTexto}` : '',
+      entrada.perfilTexto ? `Perfil respondido no cadastro:\n${entrada.perfilTexto}` : '',
     ].join('\n')
 
     const chamada = await chamar(

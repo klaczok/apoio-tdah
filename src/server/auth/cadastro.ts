@@ -2,6 +2,7 @@ import { getUserStore } from '@/server/identidade'
 import { normalizarEmail } from '@/server/identidade/usuarios'
 import { getStateStore } from '@/server/persistence'
 import { estadoVazio } from '@/server/persistence/estado'
+import { perfilVazio, type PerfilOnboarding } from '@/server/perfil/modelo'
 import { hashSenha } from './senha'
 
 // Requisito de senha divulgado na interface antes do envio.
@@ -23,7 +24,8 @@ export type ResultadoCadastro = { ok: true; usuarioId: string } | { ok: false; e
 export async function cadastrarUsuario(
   email: string,
   senha: string,
-  confirmacao: string
+  confirmacao: string,
+  perfil: PerfilOnboarding = perfilVazio()
 ): Promise<ResultadoCadastro> {
   const normalizado = normalizarEmail(email)
   if (!EMAIL_SIMPLES.test(normalizado)) {
@@ -49,7 +51,7 @@ export async function cadastrarUsuario(
   }
 
   const estado = await getStateStore(criado.value.id)
-  const gravado = await estado.save(estadoVazio(), 0)
+  const gravado = await estado.save({ ...estadoVazio(), perfil }, 0)
   if (!gravado.ok && gravado.error.kind !== 'conflito-versao') {
     return { ok: false, erro: 'indisponivel' }
   }
