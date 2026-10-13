@@ -195,7 +195,9 @@ export default async function HojePage({ searchParams }: Props) {
   // Sequência temporal: só itens com horário, ordenados — os "a confirmar"
   // ficam fora da linha, sem horário inventado.
   const comHorario = [...(diaProjetado?.itens ?? []), ...(diaProjetado?.tarefas ?? [])]
-    .filter((i): i is typeof i & { inicio: string; fim: string } => i.inicio !== null && i.fim !== null)
+    .filter(
+      (i): i is typeof i & { inicio: string; fim: string } => i.inicio !== null && i.fim !== null
+    )
     .map((i) => ({ ...i, inicioMin: horaParaMinutos(i.inicio), fimMin: horaParaMinutos(i.fim) }))
     .sort((a, b) => a.inicioMin - b.inicioMin)
   const emAndamento = comHorario.find((i) => i.inicioMin <= agoraMin && agoraMin < i.fimMin)
@@ -294,9 +296,7 @@ export default async function HojePage({ searchParams }: Props) {
             <>
               <p className={foco.agoraEyebrow}>Próximo passo</p>
               <p className={foco.agoraTitulo}>{proximo!.titulo}</p>
-              <p className={foco.agoraMeta}>
-                {horarioParaTexto(proximo!.inicio, proximo!.fim)}
-              </p>
+              <p className={foco.agoraMeta}>{horarioParaTexto(proximo!.inicio, proximo!.fim)}</p>
             </>
           )}
         </section>
@@ -324,7 +324,10 @@ export default async function HojePage({ searchParams }: Props) {
               const folga =
                 anterior && item.inicioMin - anterior.fimMin >= 10
                   ? [
-                      <li key={`livre-${item.id}`} className={`${foco.linhaItem} ${foco.itemLivre}`}>
+                      <li
+                        key={`livre-${item.id}`}
+                        className={`${foco.linhaItem} ${foco.itemLivre}`}
+                      >
                         <time className={foco.linhaHora}>{minutosParaHora(anterior.fimMin)}</time>
                         <i className={foco.linhaSinal} aria-hidden="true">
                           ≈
@@ -359,13 +362,7 @@ export default async function HojePage({ searchParams }: Props) {
                   : atual
                     ? foco.itemAtual
                     : ''
-              const sinal = margem
-                ? '≈'
-                : estado === 'realizado'
-                  ? '✓'
-                  : atual
-                    ? '●'
-                    : '○'
+              const sinal = margem ? '≈' : estado === 'realizado' ? '✓' : atual ? '●' : '○'
               const ehPrioridade = diaProjetado?.prioridades.includes(item.id) ?? false
               return [
                 ...folga,
@@ -505,7 +502,10 @@ export default async function HojePage({ searchParams }: Props) {
                   Nota (opcional)
                 </label>
                 <textarea className={styles.textarea} id="nota-revisao" name="nota" rows={3} />
-                <button className={`${ui.botao} ${ui.botaoPrimario} ${styles.alinhado}`} type="submit">
+                <button
+                  className={`${ui.botao} ${ui.botaoPrimario} ${styles.alinhado}`}
+                  type="submit"
+                >
                   Concluir revisão
                 </button>
               </form>
@@ -531,7 +531,11 @@ export default async function HojePage({ searchParams }: Props) {
           defaultValue={nota}
           disabled={erroCarga}
         />
-        <button className={`${ui.botao} ${ui.botaoPrimario} ${styles.alinhado}`} type="submit" disabled={erroCarga}>
+        <button
+          className={`${ui.botao} ${ui.botaoPrimario} ${styles.alinhado}`}
+          type="submit"
+          disabled={erroCarga}
+        >
           Salvar anotação
         </button>
       </form>

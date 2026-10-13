@@ -74,11 +74,10 @@ describe('projetarColuna', () => {
   })
 
   it('expõe lacunas livres dentro do período acordado sem criar itens', () => {
-    const coluna = projetarColuna(
-      [bloco('a', '10:00', '12:00', 'fixo')],
-      JANELA,
-      { acordar: '08:00', dormir: '20:00' }
-    )
+    const coluna = projetarColuna([bloco('a', '10:00', '12:00', 'fixo')], JANELA, {
+      acordar: '08:00',
+      dormir: '20:00',
+    })
     expect(coluna.lacunas).toHaveLength(2)
     expect(coluna.lacunas[0]).toMatchObject({ inicioMin: 480, fimMin: 600 })
     expect(coluna.lacunas[1]).toMatchObject({ inicioMin: 720, fimMin: 1200 })

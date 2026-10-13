@@ -39,7 +39,9 @@ export default async function CadastroPage({ searchParams }: Props) {
         <p className={styles.lead}>Só e-mail e senha — sua rotina começa vazia, do seu jeito.</p>
         <form className={styles.form} action="/api/auth/cadastro" method="post" noValidate>
           {erro === 'indisponivel' && (
-            <Aviso tipo="erro">Não foi possível criar a conta agora. Tente de novo em instantes.</Aviso>
+            <Aviso tipo="erro">
+              Não foi possível criar a conta agora. Tente de novo em instantes.
+            </Aviso>
           )}
           <label className={ui.campo} htmlFor="email">
             E-mail
