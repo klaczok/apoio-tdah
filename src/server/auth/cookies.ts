@@ -1,29 +1,29 @@
-export const SESSION_COOKIE_NAME = 'apoio_sessao'
+export const COOKIE_SESSAO = 'apoio_sessao'
 
-export function isSecureRequest(request: Request): boolean {
+export function requisicaoSegura(request: Request): boolean {
   return (
     new URL(request.url).protocol === 'https:' ||
     request.headers.get('x-forwarded-proto') === 'https'
   )
 }
 
-type CookieOptions = {
-  secure: boolean
-  maxAgeSeconds: number
+type OpcoesCookie = {
+  seguro: boolean
+  maxAgeSegundos: number
 }
 
-export function serializeSessionCookie(token: string, options: CookieOptions): string {
-  const parts = [
-    `${SESSION_COOKIE_NAME}=${token}`,
+export function serializarCookieSessao(token: string, opcoes: OpcoesCookie): string {
+  const partes = [
+    `${COOKIE_SESSAO}=${token}`,
     'Path=/',
     'HttpOnly',
     'SameSite=lax',
-    `Max-Age=${options.maxAgeSeconds}`,
+    `Max-Age=${opcoes.maxAgeSegundos}`,
   ]
-  if (options.secure) parts.push('Secure')
-  return parts.join('; ')
+  if (opcoes.seguro) partes.push('Secure')
+  return partes.join('; ')
 }
 
-export function serializeClearedSessionCookie(options: { secure: boolean }): string {
-  return serializeSessionCookie('', { ...options, maxAgeSeconds: 0 })
+export function serializarCookieSessaoLimpo(opcoes: { seguro: boolean }): string {
+  return serializarCookieSessao('', { ...opcoes, maxAgeSegundos: 0 })
 }

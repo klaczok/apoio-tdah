@@ -2,7 +2,7 @@
 
 import { POST } from '@/app/api/auth/cadastro/route'
 import { hashSenha } from '@/server/auth/senha'
-import { verifySessionToken } from '@/server/auth/session'
+import { verificarTokenSessao } from '@/server/auth/session'
 import { getUserStore } from '@/server/identidade'
 import { getStateStore } from '@/server/persistence'
 
@@ -52,7 +52,7 @@ describe('POST /api/auth/cadastro', () => {
     expect(cookie).toContain('HttpOnly')
 
     const token = /apoio_sessao=([^;]+)/.exec(cookie)?.[1]
-    const sessao = await verifySessionToken(SESSION_SECRET, token!, new Date())
+    const sessao = await verificarTokenSessao(SESSION_SECRET, token!, new Date())
     const usuarios = await getUserStore()
     const conta = await usuarios.buscarPorEmail(EMAIL)
     expect(conta.ok && conta.value).toBeTruthy()

@@ -1,20 +1,20 @@
 import { parsePasswordHash, type PasswordHash } from './senha'
-import type { SessionConfig } from './session'
+import type { ConfigSessao } from './session'
 
 export type CredencialLegada = {
   userEmail: string
   passwordHash: PasswordHash
 }
 
-export const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60
+export const TTL_SESSAO_SEGUNDOS = 7 * 24 * 60 * 60
 
-export function loadSessionConfig(env: NodeJS.ProcessEnv): SessionConfig {
+export function carregarConfigSessao(env: NodeJS.ProcessEnv): ConfigSessao {
   if (!env.SESSION_SECRET) {
     throw new Error('Configuração de sessão ausente')
   }
   return {
-    sessionSecret: env.SESSION_SECRET,
-    sessionTtlSeconds: SESSION_TTL_SECONDS,
+    segredoSessao: env.SESSION_SECRET,
+    ttlSessaoSegundos: TTL_SESSAO_SEGUNDOS,
   }
 }
 

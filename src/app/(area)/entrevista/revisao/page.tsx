@@ -5,6 +5,7 @@ import { Aviso, CabecalhoPagina } from '@/app/_components/ui'
 import { identidadeAutenticada, storeDoUsuario } from '@/server/auth/contexto'
 import { sessaoDaEntrevista } from '@/server/entrevista/sessao'
 import { obterDocumento } from '@/server/entrevista/documento'
+import { obterRotinaInterpretada } from '@/server/entrevista/material'
 import { ROTULOS_CATEGORIA, ROTULOS_DIA, type RotinaRecorrente } from '@/server/rotina/modelo'
 import { horarioParaTexto } from '@/server/tempo'
 import type { PropostaSemanal } from '@/server/proposta/modelo'
@@ -99,11 +100,34 @@ function BlocosProposta({ proposta }: { proposta: PropostaSemanal }) {
   )
 }
 
-const SUGESTOES_PRATICAS = [
-  'Comece aceitando só o que faz sentido — você ajusta ou remove cada bloco antes de confirmar.',
-  'Blocos protegidos são seus compromissos fixos; os flexíveis podem ser adaptados sem confirmação extra.',
-  'Depois de confirmar, a semana continua editável manualmente, no seu ritmo.',
-]
+// Sugestões práticas não clínicas, derivadas do que a entrevista
+// interpretou — genéricas só quando a rotina ainda é enxuta.
+function sugestoesPraticas(rotina: RotinaRecorrente): string[] {
+  const sugestoes: string[] = []
+  const fixos = rotina.compromissos?.filter((c) => c.tipo === 'fixo').length ?? 0
+  if (fixos > 0) {
+    sugestoes.push(
+      `Seus ${fixos} compromisso(s) com hora marcada entram como blocos protegidos — confira se batem com a semana real.`
+    )
+  }
+  if (rotina.preferenciaCarga) {
+    const rotulo = ROTULOS_CARGA[rotina.preferenciaCarga]
+    sugestoes.push(
+      `A carga preferida ficou "${rotulo}" — os blocos flexíveis foram distribuídos com ela em mente.`
+    )
+  }
+  if (rotina.sono?.acordar && rotina.sono?.dormir) {
+    sugestoes.push(
+      `Sono e refeições viram margens do dia — se os horários não fecharem, ajuste antes de confirmar.`
+    )
+  }
+  sugestoes.push(
+    'Comece aceitando só o que faz sentido — você ajusta ou remove cada bloco antes de confirmar.',
+    'Blocos protegidos são seus compromissos fixos; os flexíveis podem ser adaptados sem confirmação extra.',
+    'Depois de confirmar, a semana continua editável manualmente, no seu ritmo.'
+  )
+  return sugestoes
+}
 
 // Revisão da proposta gerada: resumo compreendido, blocos do rascunho,
 // sugestões práticas não clínicas e as saídas — editar nos fluxos
@@ -123,7 +147,10 @@ export default async function RevisaoPage({ searchParams }: Props) {
 
   const identidade = await identidadeAutenticada()
   const documento = identidade ? obterDocumento(identidade.usuarioId) : null
-  const { rotina, propostaSemanal } = carregado.value.dados
+  const { rotina: rotinaManual, propostaSemanal } = carregado.value.dados
+  // O resumo mostra o que a entrevista interpretou — ela ainda é
+  // material transitório e não tocou a rotina manual do EstadoPrivado.
+  const rotina = (identidade ? obterRotinaInterpretada(identidade.usuarioId) : null) ?? rotinaManual
   const gerada = Boolean(propostaSemanal)
 
   return (
@@ -148,7 +175,7 @@ export default async function RevisaoPage({ searchParams }: Props) {
           <section className={styles.cartao} aria-label="Sugestões práticas">
             <h2 className={styles.etapaTitulo}>Antes de confirmar</h2>
             <ul>
-              {SUGESTOES_PRATICAS.map((s) => (
+              {sugestoesPraticas(rotina).map((s) => (
                 <li key={s}>{s}</li>
               ))}
             </ul>

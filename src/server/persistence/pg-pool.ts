@@ -1,6 +1,6 @@
 import { Pool } from 'pg'
 
-const globalState = globalThis as { __estadoPool?: Pool }
+const estadoGlobal = globalThis as { __estadoPool?: Pool }
 
 // pg >= 8.16 avisa que os modos prefer/require/verify-ca virarão
 // semântica libpq (mais fraca) na v9. Hoje eles já são tratados como
@@ -12,8 +12,8 @@ export function normalizarSslMode(connectionString: string): string {
 }
 
 export function getPool(connectionString: string): Pool {
-  globalState.__estadoPool ??= new Pool({
+  estadoGlobal.__estadoPool ??= new Pool({
     connectionString: normalizarSslMode(connectionString),
   })
-  return globalState.__estadoPool
+  return estadoGlobal.__estadoPool
 }

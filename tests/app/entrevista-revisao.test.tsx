@@ -102,7 +102,6 @@ describe('POST /api/entrevista/confirmar', () => {
       formato: 'txt',
       tamanho: 10,
       consentidoEm: new Date().toISOString(),
-      bytes: new Uint8Array(),
       texto: 'x',
     })
 

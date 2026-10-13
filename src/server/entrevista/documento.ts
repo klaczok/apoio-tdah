@@ -14,8 +14,7 @@ export type DocumentoTransitorio = {
   formato: FormatoDocumento
   tamanho: number
   consentidoEm: string
-  bytes: Uint8Array
-  /** Texto já extraído (TXT agora; PDF/DOCX na etapa de interpretação). */
+  /** Texto extraído na ingestão, já dentro do limite de uso. */
   texto: string | null
 }
 
@@ -55,12 +54,12 @@ export async function extrairTextoDocumento(
   return resultado.value.trim().slice(0, LIMITE_TEXTO_EXTRAIDO) || null
 }
 
-const globalState = globalThis as {
+const estadoGlobal = globalThis as {
   __documentosEntrevista?: Map<string, { doc: DocumentoTransitorio; expira: number }>
 }
 
 function mapa() {
-  return (globalState.__documentosEntrevista ??= new Map())
+  return (estadoGlobal.__documentosEntrevista ??= new Map())
 }
 
 export function guardarDocumento(usuarioId: string, doc: DocumentoTransitorio): void {

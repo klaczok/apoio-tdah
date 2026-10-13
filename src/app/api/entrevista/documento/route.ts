@@ -7,10 +7,7 @@ import {
   guardarDocumento,
   LIMITE_DOCUMENTO_BYTES,
 } from '@/server/entrevista/documento'
-
-function redirecionar(destino: string) {
-  return new Response(null, { status: 303, headers: { location: destino } })
-}
+import { redirecionar } from '@/server/http'
 
 // Upload do documento efêmero: exige sessão autenticada, consentimento
 // geral registrado e consentimento específico marcado no formulário.
@@ -62,7 +59,6 @@ export async function POST(request: Request) {
     formato,
     tamanho: arquivo.size,
     consentidoEm: new Date().toISOString(),
-    bytes,
     texto,
   })
   return redirecionar('/entrevista/documento?selecionado=1')

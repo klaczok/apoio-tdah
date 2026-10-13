@@ -61,7 +61,7 @@ if (!globalThis.Response) {
   }
 }
 
-// Segredo de sessão de teste: mantém verifySessionToken funcional sem
+// Segredo de sessão de teste: mantém verificarTokenSessao funcional sem
 // exigir variável real de ambiente em cada suíte.
 process.env.SESSION_SECRET =
   process.env.SESSION_SECRET ?? 'segredo-de-teste-com-entropia-suficiente'
@@ -86,10 +86,10 @@ jest.mock('next/navigation', () => {
 // Sessão controlada por teste: o mock de next/headers devolve o cookie de
 // sessão definido via globalThis.__sessaoTeste (ver tests/helpers/sessao.ts).
 jest.mock('next/headers', () => {
-  const { SESSION_COOKIE_NAME } = jest.requireActual('./src/server/auth/cookies')
+  const { COOKIE_SESSAO } = jest.requireActual('./src/server/auth/cookies')
   const { ENTREVISTA_COOKIE } = jest.requireActual('./src/server/entrevista/cookie')
   const valorDe = (nome) =>
-    nome === SESSION_COOKIE_NAME
+    nome === COOKIE_SESSAO
       ? globalThis.__sessaoTeste
       : nome === ENTREVISTA_COOKIE
         ? globalThis.__entrevistaTeste

@@ -83,6 +83,10 @@ export default async function DocumentoPage({ searchParams }: Props) {
         <section className={styles.cartao} aria-label="Anexar documento">
           <ul>
             <li>Um único documento por entrevista: PDF, DOCX ou TXT, de até 2 MB.</li>
+            <li>
+              Do texto extraído, só as primeiras 10 páginas ou 10 mil caracteres são usados — o que
+              ocorrer primeiro.
+            </li>
             <li>Imagens não são aceitas.</li>
             <li>
               O documento só serve para compor esta entrevista — não fica armazenado no produto e é
