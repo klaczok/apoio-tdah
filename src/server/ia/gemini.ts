@@ -54,16 +54,28 @@ async function chamar(apiKey: string | undefined, prompt: string): Promise<Chama
     }
   }
 
-  let resposta = await tentar(modelo())
+  const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+  let modeloEfetivo = modelo()
+  let resposta = await tentar(modeloEfetivo)
   if (resposta?.status === 404) {
     const corpo = await resposta.text().catch(() => '')
     console.warn('[ia/gemini] HTTP 404', corpo.slice(0, 300))
     // A mensagem do Google cita o modelo substituto: "use models/X".
     const substituto = corpo.match(/use models\/([\w.-]+)/i)?.[1]
-    if (substituto && substituto !== modelo()) {
+    if (substituto && substituto !== modeloEfetivo) {
       console.warn(`[ia/gemini] retentando com o modelo sugerido: ${substituto}`)
-      resposta = await tentar(substituto)
+      modeloEfetivo = substituto
+      resposta = await tentar(modeloEfetivo)
     }
+  }
+  // Pico de demanda no nível gratuito é transitório — duas novas
+  // tentativas com backoff antes de desistir da rodada.
+  for (const espera of [1000, 2500]) {
+    if (resposta?.status !== 503) break
+    console.warn('[ia/gemini] demanda alta, retentando em', espera, 'ms')
+    await esperar(espera)
+    resposta = await tentar(modeloEfetivo)
   }
   if (!resposta) return { ok: false, motivo: 'indisponivel' }
   if (!resposta.ok) {
