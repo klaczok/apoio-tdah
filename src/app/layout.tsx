@@ -14,8 +14,8 @@ const serif = DM_Serif_Display({
 })
 
 export const metadata = {
-  title: 'Apoio à Rotina',
-  description: 'Planejador pessoal de baixa carga cognitiva.',
+  title: 'Ritmo — planejador pessoal',
+  description: 'Sua semana, no seu ritmo. Planejador pessoal de baixa carga cognitiva.',
 }
 
 export default function RootLayout({ children }: { children: ReactNode }) {

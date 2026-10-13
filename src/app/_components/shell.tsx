@@ -7,13 +7,13 @@ import { ItemNavegacao } from './navegacao'
 
 function Marca({ href, compacto = false }: { href: string; compacto?: boolean }) {
   return (
-    <Link className={styles.marca} href={href} aria-label="Apoio à Rotina">
+    <Link className={styles.marca} href={href} aria-label="Ritmo">
       <span className={styles.marcaSimbolo} aria-hidden="true">
-        a
+        r
       </span>
       <span className={styles.marcaTexto}>
-        <strong>Apoio</strong>
-        {!compacto && <small>à rotina</small>}
+        <strong>Ritmo</strong>
+        {!compacto && <small>planejador pessoal</small>}
       </span>
     </Link>
   )
