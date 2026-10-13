@@ -20,5 +20,5 @@ O acesso era individual: a credencial vivia em `AUTH_USER_EMAIL` + `AUTH_PASSWOR
 ## Consequências
 
 - `AUTH_USER_EMAIL`/`AUTH_PASSWORD_HASH` deixam de ser obrigatórias quando há usuários persistidos, mas `SESSION_SECRET` continua obrigatória — sua ausência responde 503.
-- Sujeito de sessão deixa de ser constante: consumidores que assumirem `usuario-unico` devem usar a identidade retornada pela verificação (a contextualização do `StateStore` por `usuarioId` fica para a issue seguinte — até lá, o estado continua compartilhado pelo registro único).
+- Sujeito de sessão deixa de ser constante: consumidores que assumirem `usuario-unico` devem usar a identidade retornada pela verificação. O `StateStore` é contextualizado por `usuarioId` — páginas e APIs resolvem o proprietário via `storeDoUsuario()` (cookie assinado, nunca `userId` do cliente) e `proprietarioDoEstado` mapeia `usuario-unico` para a linha histórica `usuario` durante a transição.
 - A migração da conta legada para `usuarios` e a remoção das variáveis de ambiente são passos posteriores, explicitados no spec v2 (seção 8).

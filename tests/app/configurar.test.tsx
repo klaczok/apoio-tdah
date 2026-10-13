@@ -12,10 +12,14 @@ import {
   rotinaVazia,
 } from '@/server/rotina/modelo'
 
+import { autenticarComo, USUARIO_TESTE } from '../helpers/sessao'
+
 process.env.PERSISTENCE_DRIVER = 'memory'
 
+beforeEach(() => autenticarComo())
+
 async function gravar(rotina = rotinaVazia()) {
-  const store = await getStateStore()
+  const store = await getStateStore(USUARIO_TESTE)
   const carregado = await store.load()
   if (!carregado.ok) throw new Error('store indisponível no teste')
   await store.save({ ...estadoVazio(), rotina }, carregado.value.version)

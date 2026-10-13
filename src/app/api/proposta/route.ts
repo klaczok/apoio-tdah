@@ -1,5 +1,5 @@
 import { redirecionar } from '@/server/http'
-import { getStateStore } from '@/server/persistence'
+import { storeDoUsuario } from '@/server/auth/contexto'
 import { erroParaParam } from '@/server/persistence/mensagens'
 import { SchemaInvalidoError } from '@/server/persistence/schema-error'
 import { gerarPropostaSemanal } from '@/server/proposta/gerar'
@@ -62,6 +62,9 @@ function aplicador(acao: string, form: FormData): (atual: PropostaAtual) => Prop
 }
 
 export async function POST(request: Request) {
+  const store = await storeDoUsuario()
+  if (!store) return redirecionar('/login')
+
   const form = await request.formData().catch(() => null)
   if (!form) return redirecionar('/proposta')
 
@@ -73,7 +76,6 @@ export async function POST(request: Request) {
     return redirecionar('/proposta?erro=entrada')
   }
 
-  const store = await getStateStore()
   const resultado = await atualizarProposta(store, aplicar)
 
   if (!resultado.ok) {

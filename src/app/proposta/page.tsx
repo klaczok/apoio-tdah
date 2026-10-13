@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import styles from '../configurar/configurar.module.css'
-import { getStateStore } from '@/server/persistence'
+import { redirect } from 'next/navigation'
+import { storeDoUsuario } from '@/server/auth/contexto'
 import { MENSAGENS_ERRO } from '@/server/persistence/mensagens'
 import { dataHoraParaTexto } from '@/server/tempo'
 import { ROTULOS_CATEGORIA, ROTULOS_DIA } from '@/server/rotina/modelo'
@@ -141,7 +142,9 @@ function FormGerar({ texto }: { texto: string }) {
 
 export default async function PropostaPage({ searchParams }: Props) {
   const params = await searchParams
-  const carregado = await (await getStateStore()).load()
+  const store = await storeDoUsuario()
+  if (!store) redirect('/login')
+  const carregado = await store.load()
 
   const erroCarga = !carregado.ok
   const rascunho = carregado.ok ? carregado.value.dados.propostaSemanal : null

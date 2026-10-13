@@ -1,5 +1,5 @@
 import { redirecionar } from '@/server/http'
-import { getStateStore } from '@/server/persistence'
+import { storeDoUsuario } from '@/server/auth/contexto'
 import { erroParaParam } from '@/server/persistence/mensagens'
 import { ehEtapa, ETAPAS_DE_LISTA, proximaEtapa, type Etapa } from '@/app/configurar/etapas'
 import {
@@ -150,6 +150,9 @@ function aplicador(etapa: Etapa, form: FormData): (rotina: RotinaRecorrente) => 
 }
 
 export async function POST(request: Request, contexto: { params: Promise<{ etapa: string }> }) {
+  const store = await storeDoUsuario()
+  if (!store) return redirecionar('/login')
+
   const { etapa } = await contexto.params
   if (!ehEtapa(etapa)) {
     return new Response(null, { status: 404 })
@@ -159,7 +162,6 @@ export async function POST(request: Request, contexto: { params: Promise<{ etapa
     return redirecionar('/configurar')
   }
 
-  const store = await getStateStore()
   const resultado = await atualizarRotina(store, aplicador(etapa, form))
 
   if (!resultado.ok) {

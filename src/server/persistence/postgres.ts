@@ -14,54 +14,62 @@ export type Queryable = {
   ): Promise<{ rowCount: number | null; rows: Record<string, unknown>[] }>
 }
 
-const ROW_ID = 'usuario'
 const TABELA_PADRAO = 'estado_usuario'
 
 // Identificador de tabela vem de configuração de ambiente — validação
 // estrita porque o nome entra interpolado no SQL (não parametrizável).
 const IDENTIFICADOR = /^[a-z_][a-z0-9_]{0,62}$/
 
+// A criação da tabela é compartilhada entre instâncias do mesmo pool/tabela:
+// cada usuário tem sua própria instância do store, mas o schema é um só.
+const schemasProntos = new WeakMap<Queryable, Map<string, Promise<PersistenceResult<true>>>>()
+
 export class PostgresStateStore implements StateStore {
-  private schemaPronto: Promise<PersistenceResult<true>> | null = null
   private tabela: string
+  private proprietario: string
 
   constructor(
     private db: Queryable,
-    tabela = TABELA_PADRAO
+    tabela = TABELA_PADRAO,
+    proprietario: string
   ) {
     if (!IDENTIFICADOR.test(tabela)) {
       throw new SchemaInvalidoError('nome de tabela inválido')
     }
+    if (!proprietario) {
+      throw new SchemaInvalidoError('proprietário ausente')
+    }
     this.tabela = tabela
+    this.proprietario = proprietario
   }
 
   private async ensureSchema(): Promise<PersistenceResult<true>> {
-    this.schemaPronto ??= (async () => {
-      try {
-        await this.db.query(`
-          CREATE TABLE IF NOT EXISTS ${this.tabela} (
-            id TEXT PRIMARY KEY,
-            schema_version INTEGER NOT NULL,
-            version INTEGER NOT NULL,
-            dados JSONB,
-            criado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
-            atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now()
-          )
-        `)
-        await this.db.query(
-          `INSERT INTO ${this.tabela} (id, schema_version, version, dados)
-           VALUES ($1, $2, 0, NULL)
-           ON CONFLICT (id) DO NOTHING`,
-          [ROW_ID, SCHEMA_VERSION]
-        )
-        return { ok: true, value: true }
-      } catch (error) {
-        this.schemaPronto = null
-        console.error('falha ao preparar schema de persistência', error)
-        return { ok: false, error: { kind: 'armazenamento-indisponivel' } }
-      }
-    })()
-    return this.schemaPronto
+    const porTabela = schemasProntos.get(this.db) ?? new Map()
+    schemasProntos.set(this.db, porTabela)
+    let pronto = porTabela.get(this.tabela)
+    if (!pronto) {
+      pronto = (async () => {
+        try {
+          await this.db.query(`
+            CREATE TABLE IF NOT EXISTS ${this.tabela} (
+              id TEXT PRIMARY KEY,
+              schema_version INTEGER NOT NULL,
+              version INTEGER NOT NULL,
+              dados JSONB,
+              criado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+              atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+          `)
+          return { ok: true, value: true }
+        } catch (error) {
+          porTabela.delete(this.tabela)
+          console.error('falha ao preparar schema de persistência', error)
+          return { ok: false, error: { kind: 'armazenamento-indisponivel' } }
+        }
+      })()
+      porTabela.set(this.tabela, pronto)
+    }
+    return pronto
   }
 
   async load(): Promise<PersistenceResult<EstadoCarregado>> {
@@ -72,7 +80,7 @@ export class PostgresStateStore implements StateStore {
     try {
       ;({ rows } = await this.db.query(
         `SELECT schema_version, version, dados FROM ${this.tabela} WHERE id = $1`,
-        [ROW_ID]
+        [this.proprietario]
       ))
     } catch (error) {
       console.error('falha ao ler estado persistido', error)
@@ -80,10 +88,11 @@ export class PostgresStateStore implements StateStore {
     }
 
     const row = rows[0]
-    if (!row) return { ok: false, error: { kind: 'armazenamento-indisponivel' } }
-
-    if (row.dados === null) {
-      return { ok: true, value: { version: Number(row.version), dados: estadoVazio() } }
+    if (!row || row.dados === null) {
+      return {
+        ok: true,
+        value: { version: row ? Number(row.version) : 0, dados: estadoVazio() },
+      }
     }
 
     try {
@@ -124,13 +133,32 @@ export class PostgresStateStore implements StateStore {
              version = version + 1,
              atualizado_em = now()
          WHERE id = $3 AND version = $4`,
-        [JSON.stringify(dados), SCHEMA_VERSION, ROW_ID, expectedVersion]
+        [JSON.stringify(dados), SCHEMA_VERSION, this.proprietario, expectedVersion]
       )
-      if (!rowCount) {
+      if (rowCount) {
+        return { ok: true, value: expectedVersion + 1 }
+      }
+      if (expectedVersion > 0) {
         return { ok: false, error: { kind: 'conflito-versao' } }
       }
-      return { ok: true, value: expectedVersion + 1 }
     } catch (error) {
+      console.error('falha ao gravar estado', error)
+      return { ok: false, error: { kind: 'armazenamento-indisponivel' } }
+    }
+
+    // Primeira gravação: a linha ainda não existe. A PK do Postgres garante
+    // que só uma inserção concorrente vence; a derrotada vira conflito.
+    try {
+      await this.db.query(
+        `INSERT INTO ${this.tabela} (id, schema_version, version, dados)
+         VALUES ($1, $2, 1, $3::jsonb)`,
+        [this.proprietario, SCHEMA_VERSION, JSON.stringify(dados)]
+      )
+      return { ok: true, value: 1 }
+    } catch (error) {
+      if ((error as { code?: string }).code === '23505') {
+        return { ok: false, error: { kind: 'conflito-versao' } }
+      }
       console.error('falha ao gravar estado', error)
       return { ok: false, error: { kind: 'armazenamento-indisponivel' } }
     }

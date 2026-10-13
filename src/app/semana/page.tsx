@@ -1,6 +1,7 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import styles from '../configurar/configurar.module.css'
-import { getStateStore } from '@/server/persistence'
+import { storeDoUsuario } from '@/server/auth/contexto'
 import { MENSAGENS_ERRO } from '@/server/persistence/mensagens'
 import { instanciaDoDia } from '@/server/dia/gerar'
 import { diasDaSemana, resumoSemana, type DiaResumo, type ResumoSemana } from '@/server/dia/semana'
@@ -146,7 +147,8 @@ function CardDia({ resumo, hoje }: { resumo: DiaResumo; hoje: string }) {
 export default async function SemanaPage({ searchParams }: Props) {
   const params = await searchParams
   const hoje = dataCivilHoje()
-  const store = await getStateStore()
+  const store = await storeDoUsuario()
+  if (!store) redirect('/login')
   const carregado = await store.load()
   const mensagemErro = carregado.ok
     ? params.erro

@@ -10,7 +10,11 @@ import {
   rotinaVazia,
 } from '@/server/rotina/modelo'
 
+import { autenticarComo, USUARIO_TESTE } from '../helpers/sessao'
+
 process.env.PERSISTENCE_DRIVER = 'memory'
+
+beforeEach(() => autenticarComo())
 
 function requisicao(campos: Record<string, string>) {
   const corpo = new URLSearchParams()
@@ -24,13 +28,13 @@ function requisicao(campos: Record<string, string>) {
 }
 
 async function estadoAtual() {
-  const lido = await (await getStateStore()).load()
+  const lido = await (await getStateStore(USUARIO_TESTE)).load()
   if (!lido.ok) throw new Error('store indisponível no teste')
   return lido.value.dados
 }
 
 async function comRotinaConfigurada() {
-  const store = await getStateStore()
+  const store = await getStateStore(USUARIO_TESTE)
   const lido = await store.load()
   if (!lido.ok) throw new Error('store indisponível no teste')
   let rotina = definirSono(rotinaVazia(), { dormir: '23:00', acordar: '07:00' })

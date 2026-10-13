@@ -1,6 +1,7 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import styles from './hoje.module.css'
-import { getStateStore } from '@/server/persistence'
+import { storeDoUsuario } from '@/server/auth/contexto'
 import { MENSAGENS_ERRO } from '@/server/persistence/mensagens'
 import { avaliarAlertas } from '@/server/dia/alertas'
 import { instanciaDoDia } from '@/server/dia/gerar'
@@ -155,7 +156,9 @@ function FormDestino({
 export default async function HojePage({ searchParams }: Props) {
   const params = await searchParams
   const hoje = dataCivilHoje()
-  const carregado = await (await getStateStore()).load()
+  const store = await storeDoUsuario()
+  if (!store) redirect('/login')
+  const carregado = await store.load()
 
   const erroCarga = !carregado.ok
   const nota = carregado.ok ? (carregado.value.dados.notasPorDia[hoje] ?? '') : ''

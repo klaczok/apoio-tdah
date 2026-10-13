@@ -2,6 +2,7 @@
 
 import { POST } from '@/app/api/notas/dia/route'
 import { getStateStore } from '@/server/persistence'
+import { autenticarComo, USUARIO_TESTE } from '../helpers/sessao'
 
 process.env.PERSISTENCE_DRIVER = 'memory'
 
@@ -14,20 +15,22 @@ function requisicao(campos: Record<string, string>) {
 }
 
 describe('POST /api/notas/dia', () => {
+  beforeEach(() => autenticarComo())
+
   it('persiste a anotação e confirma só após a gravação', async () => {
     const resposta = await POST(requisicao({ data: '2026-10-09', nota: 'levar documento' }))
 
     expect(resposta.status).toBe(303)
     expect(resposta.headers.get('location')).toBe('/hoje?salvo=1')
 
-    const lido = await (await getStateStore()).load()
+    const lido = await (await getStateStore(USUARIO_TESTE)).load()
     expect(lido.ok && lido.value.dados.notasPorDia['2026-10-09']).toBe('levar documento')
   })
 
   it('mantém a anotação em nova leitura, como em recarregar', async () => {
     await POST(requisicao({ data: '2026-10-10', nota: 'texto persistido' }))
 
-    const lido = await (await getStateStore()).load()
+    const lido = await (await getStateStore(USUARIO_TESTE)).load()
     expect(lido.ok && lido.value.dados.notasPorDia['2026-10-10']).toBe('texto persistido')
   })
 
@@ -35,7 +38,7 @@ describe('POST /api/notas/dia', () => {
     await POST(requisicao({ data: '2026-10-09', nota: 'algo' }))
     await POST(requisicao({ data: '2026-10-09', nota: '   ' }))
 
-    const lido = await (await getStateStore()).load()
+    const lido = await (await getStateStore(USUARIO_TESTE)).load()
     expect(lido.ok && '2026-10-09' in lido.value.dados.notasPorDia).toBe(false)
   })
 
@@ -50,7 +53,7 @@ describe('POST /api/notas/dia', () => {
 describe('seleção do adapter', () => {
   it('sem POSTGRES_URL o adapter responde indisponível, sem exceção', async () => {
     const { createStateStore } = await import('@/server/persistence')
-    const store = await createStateStore({ NODE_ENV: 'test' })
+    const store = await createStateStore({ NODE_ENV: 'test' }, 'u-sem-banco')
 
     const resultado = await store.load()
 

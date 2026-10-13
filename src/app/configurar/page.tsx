@@ -2,7 +2,8 @@ import Link from 'next/link'
 import styles from './configurar.module.css'
 import { ETAPAS, ROTULOS_ETAPA } from './etapas'
 import { resumoEtapa } from './resumo'
-import { getStateStore } from '@/server/persistence'
+import { redirect } from 'next/navigation'
+import { storeDoUsuario } from '@/server/auth/contexto'
 import { MENSAGENS_ERRO } from '@/server/persistence/mensagens'
 import { rotinaVazia } from '@/server/rotina/modelo'
 
@@ -14,7 +15,9 @@ type Props = {
 
 export default async function ConfigurarPage({ searchParams }: Props) {
   const params = await searchParams
-  const carregado = await (await getStateStore()).load()
+  const store = await storeDoUsuario()
+  if (!store) redirect('/login')
+  const carregado = await store.load()
 
   const erroCarga = !carregado.ok
   const rotina = carregado.ok ? carregado.value.dados.rotina : rotinaVazia()

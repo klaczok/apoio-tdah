@@ -48,14 +48,14 @@ const cenarios: Cenario[] = [
         query: (text, params) =>
           quebrado ? Promise.reject(new Error('falha simulada')) : pool.query(text, params),
       }
-      const store = new PostgresStateStore(proxy)
+      const store = new PostgresStateStore(proxy, 'estado_usuario', 'u-contrato')
       return {
         store,
         corromper: async (valor, schemaVersion) => {
-          await pool.query('UPDATE estado_usuario SET dados = $1::jsonb, schema_version = $2', [
-            JSON.stringify(valor),
-            schemaVersion ?? SCHEMA_VERSION,
-          ])
+          await pool.query(
+            "UPDATE estado_usuario SET dados = $1::jsonb, schema_version = $2 WHERE id = 'u-contrato'",
+            [JSON.stringify(valor), schemaVersion ?? SCHEMA_VERSION]
+          )
         },
         quebrar: async () => {
           quebrado = true
@@ -157,8 +157,8 @@ describe.each(cenarios)('contrato StateStore — $nome', ({ preparar }) => {
   it('isola dados entre tabelas no mesmo banco — preview não vê produção', async () => {
     const db: IMemoryDb = newDb()
     const pool = new (db.adapters.createPg().Pool)() as unknown as Queryable
-    const producao = new PostgresStateStore(pool, 'estado_usuario')
-    const preview = new PostgresStateStore(pool, 'estado_usuario_preview')
+    const producao = new PostgresStateStore(pool, 'estado_usuario', 'u-contrato')
+    const preview = new PostgresStateStore(pool, 'estado_usuario_preview', 'u-contrato')
 
     await producao.save(dados({ '2026-10-09': 'dado de produção' }), 0)
 
@@ -176,8 +176,54 @@ describe.each(cenarios)('contrato StateStore — $nome', ({ preparar }) => {
     const pool = new (db.adapters.createPg().Pool)() as unknown as Queryable
 
     for (const nome of ['estado; DROP TABLE x', 'estado-usuario', '1tabela', '']) {
-      expect(() => new PostgresStateStore(pool, nome)).toThrow()
+      expect(() => new PostgresStateStore(pool, nome, 'u-contrato')).toThrow()
     }
+  })
+
+  it('duas contas no mesmo banco não leem nem alteram o estado uma da outra', async () => {
+    const db: IMemoryDb = newDb()
+    const pool = new (db.adapters.createPg().Pool)() as unknown as Queryable
+    const alice = new PostgresStateStore(pool, 'estado_usuario', 'u-alice')
+    const bob = new PostgresStateStore(pool, 'estado_usuario', 'u-bob')
+
+    expect(await bob.load()).toEqual({
+      ok: true,
+      value: { version: 0, dados: estadoVazio() },
+    })
+
+    await alice.save(dados({ '2026-10-09': 'nota da alice' }), 0)
+
+    expect(await bob.load()).toEqual({
+      ok: true,
+      value: { version: 0, dados: estadoVazio() },
+    })
+    const lidoAlice = await alice.load()
+    expect(lidoAlice.ok && lidoAlice.value.dados.notasPorDia['2026-10-09']).toBe('nota da alice')
+  })
+
+  it('concorrência otimista é independente por usuário', async () => {
+    const db: IMemoryDb = newDb()
+    const pool = new (db.adapters.createPg().Pool)() as unknown as Queryable
+    const alice = new PostgresStateStore(pool, 'estado_usuario', 'u-alice')
+    const bob = new PostgresStateStore(pool, 'estado_usuario', 'u-bob')
+
+    expect(await alice.save(dados({}), 0)).toEqual({ ok: true, value: 1 })
+    expect(await bob.save(dados({}), 0)).toEqual({ ok: true, value: 1 })
+
+    const conflitoAlice = await alice.save(dados({}), 0)
+    expect(conflitoAlice).toEqual({ ok: false, error: { kind: 'conflito-versao' } })
+    expect(await bob.save(dados({}), 1)).toEqual({ ok: true, value: 2 })
+  })
+
+  it('primeira gravação concorrente na mesma conta confirma só uma', async () => {
+    const db: IMemoryDb = newDb()
+    const pool = new (db.adapters.createPg().Pool)() as unknown as Queryable
+    const store = new PostgresStateStore(pool, 'estado_usuario', 'u-novo')
+
+    const [a, b] = await Promise.all([store.save(dados({}), 0), store.save(dados({}), 0)])
+
+    expect([a, b].filter((r) => r.ok)).toHaveLength(1)
+    expect([a, b].filter((r) => !r.ok && r.error.kind === 'conflito-versao')).toHaveLength(1)
   })
 
   it('não retorna hash de credencial nas leituras comuns', async () => {

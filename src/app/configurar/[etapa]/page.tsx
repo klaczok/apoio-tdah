@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import styles from '../configurar.module.css'
 import { ehEtapa, ETAPAS, ROTULOS_ETAPA, type Etapa } from '../etapas'
 import {
@@ -9,7 +9,7 @@ import {
   resumoPeriodo,
   rotulosDias,
 } from '../resumo'
-import { getStateStore } from '@/server/persistence'
+import { storeDoUsuario } from '@/server/auth/contexto'
 import { MENSAGENS_ERRO } from '@/server/persistence/mensagens'
 import { dataCivilParaTexto } from '@/server/tempo'
 import {
@@ -759,7 +759,9 @@ export default async function EtapaPage({ params, searchParams }: Props) {
   if (!ehEtapa(etapa)) notFound()
   const query = await searchParams
 
-  const carregado = await (await getStateStore()).load()
+  const store = await storeDoUsuario()
+  if (!store) redirect('/login')
+  const carregado = await store.load()
   const erroCarga = !carregado.ok
   const rotina = carregado.ok ? carregado.value.dados.rotina : rotinaVazia()
   const mensagemErro = query.erro ? MENSAGENS_ERRO[query.erro] : undefined

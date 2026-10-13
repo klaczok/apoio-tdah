@@ -1,5 +1,5 @@
 import { redirecionar } from '@/server/http'
-import { getStateStore } from '@/server/persistence'
+import { storeDoUsuario } from '@/server/auth/contexto'
 import { erroParaParam } from '@/server/persistence/mensagens'
 import { SchemaInvalidoError } from '@/server/persistence/schema-error'
 import { AlertasPendentesError, avaliarAlertas } from '@/server/dia/alertas'
@@ -28,7 +28,7 @@ import {
 import { ehCategoria, ItemNaoEncontradoError, type Categoria } from '@/server/rotina/modelo'
 import { dataCivilAmanha, dataCivilHoje, ehDataCivil, somarDiasCivil } from '@/server/tempo'
 import { atualizarDia, type DiaAtual, type DiaNovo } from '@/server/usecases/dia'
-import type { PersistenceResult } from '@/server/persistence/store'
+import type { PersistenceResult, StateStore } from '@/server/persistence/store'
 
 function textoOuNulo(form: FormData, campo: string): string | null {
   const valor = String(form.get(campo) ?? '').trim()
@@ -47,9 +47,7 @@ function dataDo(form: FormData): string {
 type Plano = {
   data: string
   aplicar: (atual: DiaAtual) => DiaNovo
-  depois?: (
-    store: Awaited<ReturnType<typeof getStateStore>>
-  ) => Promise<PersistenceResult<unknown> | void>
+  depois?: (store: StateStore) => Promise<PersistenceResult<unknown> | void>
 }
 
 function aplicador(acao: string, form: FormData): Plano {
@@ -365,6 +363,9 @@ function aplicador(acao: string, form: FormData): Plano {
 }
 
 export async function POST(request: Request) {
+  const store = await storeDoUsuario()
+  if (!store) return redirecionar('/login')
+
   const form = await request.formData().catch(() => null)
   if (!form) return redirecionar('/amanha')
 
@@ -392,7 +393,6 @@ export async function POST(request: Request) {
     return redirecionar(`${pagina}?erro=entrada`)
   }
 
-  const store = await getStateStore()
   const resultado = await atualizarDia(store, plano.data, plano.aplicar)
 
   if (!resultado.ok) {

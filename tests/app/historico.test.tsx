@@ -21,7 +21,11 @@ import {
 } from '@/server/rotina/modelo'
 import { dataCivilHoje, dataCivilParaTexto, diaSemanaDe, somarDiasCivil } from '@/server/tempo'
 
+import { autenticarComo, USUARIO_TESTE } from '../helpers/sessao'
+
 process.env.PERSISTENCE_DRIVER = 'memory'
+
+beforeEach(() => autenticarComo())
 
 function renderizarLista(params: Record<string, string> = {}) {
   return HistoricoPage({ searchParams: Promise.resolve(params) }).then(render)
@@ -39,7 +43,7 @@ const AGORA = new Date('2026-10-12T12:00:00Z')
 // Dia passado persistido com revisão concluída — como um histórico real.
 async function comHistorico() {
   const ontem = somarDiasCivil(dataCivilHoje(), -1)
-  const store = await getStateStore()
+  const store = await getStateStore(USUARIO_TESTE)
   const lido = await store.load()
   if (!lido.ok) throw new Error('store indisponível no teste')
   const diaSemana = diaSemanaDe(ontem)
@@ -91,12 +95,12 @@ describe('histórico', () => {
 
   it('não materializa dias nem altera dados ao navegar', async () => {
     const { ontem } = await comHistorico()
-    const antes = await getStateStore().then((s) => s.load())
+    const antes = await getStateStore(USUARIO_TESTE).then((s) => s.load())
 
     await renderizarLista()
     await renderizarDia(ontem)
 
-    const depois = await getStateStore().then((s) => s.load())
+    const depois = await getStateStore(USUARIO_TESTE).then((s) => s.load())
     if (!antes.ok || !depois.ok) throw new Error('store indisponível no teste')
     expect(depois.value.dados).toEqual(antes.value.dados)
   })
@@ -147,7 +151,7 @@ describe('dia histórico', () => {
     const id = instancia.itens[0].id
     const anterior = instancia.revisao.estados[id] ?? null
     const corrigida = corrigirEstadoRevisao(instancia, id, 'descartado', true, AGORA)
-    const store = await getStateStore()
+    const store = await getStateStore(USUARIO_TESTE)
     const lido = await store.load()
     if (!lido.ok) throw new Error('store indisponível no teste')
     await store.save({ ...lido.value.dados, dias: { [ontem]: corrigida } }, lido.value.version)

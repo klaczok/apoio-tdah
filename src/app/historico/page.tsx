@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import styles from '../configurar/configurar.module.css'
-import { getStateStore } from '@/server/persistence'
+import { redirect } from 'next/navigation'
+import { storeDoUsuario } from '@/server/auth/contexto'
 import { MENSAGENS_ERRO } from '@/server/persistence/mensagens'
 import { sinteseRevisao } from '@/server/dia/modelo'
 import { ROTULOS_DIA } from '@/server/rotina/modelo'
@@ -17,7 +18,9 @@ export default async function HistoricoPage({
 }) {
   const search = await searchParams
   const hoje = dataCivilHoje()
-  const carregado = await (await getStateStore()).load()
+  const store = await storeDoUsuario()
+  if (!store) redirect('/login')
+  const carregado = await store.load()
   const mensagemErro = carregado.ok
     ? search.erro
       ? MENSAGENS_ERRO[search.erro]

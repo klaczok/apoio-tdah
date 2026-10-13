@@ -10,7 +10,11 @@ import { confirmarProposta } from '@/server/proposta/modelo'
 import { acrescentarCompromisso, definirSono, rotinaVazia } from '@/server/rotina/modelo'
 import { dataCivilHoje, dataCivilParaTexto, diaSemanaDe } from '@/server/tempo'
 
+import { autenticarComo, USUARIO_TESTE } from '../helpers/sessao'
+
 process.env.PERSISTENCE_DRIVER = 'memory'
+
+beforeEach(() => autenticarComo())
 
 function renderizar(params: Record<string, string> = {}) {
   return SemanaPage({ searchParams: Promise.resolve(params) }).then(render)
@@ -18,7 +22,7 @@ function renderizar(params: Record<string, string> = {}) {
 
 async function comSemana() {
   const hoje = dataCivilHoje()
-  const store = await getStateStore()
+  const store = await getStateStore(USUARIO_TESTE)
   const lido = await store.load()
   if (!lido.ok) throw new Error('store indisponível no teste')
   let rotina = definirSono(rotinaVazia(), { dormir: '23:00', acordar: '07:00' })
@@ -66,7 +70,7 @@ describe('/semana — equilíbrio semanal', () => {
     const flexivel = instancia.itens.find((i) => i.protecao === 'flexivel')
     let dia = instancia
     if (flexivel) dia = registrarEstado(instancia, flexivel.id, 'realizado')
-    const store = await getStateStore()
+    const store = await getStateStore(USUARIO_TESTE)
     const lido = await store.load()
     if (!lido.ok) throw new Error('store indisponível no teste')
     await store.save(

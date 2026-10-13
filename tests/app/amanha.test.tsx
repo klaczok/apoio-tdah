@@ -18,10 +18,14 @@ import {
   type RotinaRecorrente,
 } from '@/server/rotina/modelo'
 
+import { autenticarComo, USUARIO_TESTE } from '../helpers/sessao'
+
 process.env.PERSISTENCE_DRIVER = 'memory'
 
+beforeEach(() => autenticarComo())
+
 async function gravar(dados: EstadoPrivado) {
-  const store = await getStateStore()
+  const store = await getStateStore(USUARIO_TESTE)
   const carregado = await store.load()
   if (!carregado.ok) throw new Error('store indisponível no teste')
   await store.save(dados, carregado.value.version)
@@ -198,7 +202,7 @@ describe('Amanhã', () => {
   it('dia confirmado não oferece edição', async () => {
     const instancia = await comDiaPlanejado()
     const confirmada = { ...instancia, confirmadaEm: '2026-10-12T21:00:00.000Z' }
-    const store = await getStateStore()
+    const store = await getStateStore(USUARIO_TESTE)
     const carregado = await store.load()
     if (!carregado.ok) throw new Error('store indisponível')
     await store.save(
@@ -216,7 +220,7 @@ describe('Amanhã', () => {
     const instancia = await comDiaPlanejado()
     const alvo = instancia.itens.find((i) => i.inicio !== null)!
     const comPrioridade = { ...instancia, prioridades: [alvo.id] }
-    const store = await getStateStore()
+    const store = await getStateStore(USUARIO_TESTE)
     const carregado = await store.load()
     if (!carregado.ok) throw new Error('store indisponível')
     await store.save(
@@ -258,7 +262,7 @@ describe('Amanhã', () => {
     const instancia = await comDiaPlanejado(r)
     const tres = instancia.itens.filter((i) => i.inicio !== null).slice(0, 3)
     const comTres = { ...instancia, prioridades: tres.map((i) => i.id) }
-    const store = await getStateStore()
+    const store = await getStateStore(USUARIO_TESTE)
     const carregado = await store.load()
     if (!carregado.ok) throw new Error('store indisponível')
     await store.save(
@@ -319,7 +323,7 @@ describe('Amanhã', () => {
       ],
       notaDia: 'Dia puxado',
     }
-    const store = await getStateStore()
+    const store = await getStateStore(USUARIO_TESTE)
     const carregado = await store.load()
     if (!carregado.ok) throw new Error('store indisponível')
     await store.save(
@@ -353,7 +357,7 @@ describe('Amanhã', () => {
         },
       ],
     }
-    const store = await getStateStore()
+    const store = await getStateStore(USUARIO_TESTE)
     const carregado = await store.load()
     if (!carregado.ok) throw new Error('store indisponível')
     await store.save(

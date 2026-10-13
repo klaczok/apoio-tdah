@@ -11,10 +11,14 @@ import {
 } from '@/server/rotina/modelo'
 import { gerarPropostaSemanal } from '@/server/proposta/gerar'
 
+import { autenticarComo, USUARIO_TESTE } from '../helpers/sessao'
+
 process.env.PERSISTENCE_DRIVER = 'memory'
 
+beforeEach(() => autenticarComo())
+
 async function gravar(dados: EstadoPrivado) {
-  const store = await getStateStore()
+  const store = await getStateStore(USUARIO_TESTE)
   const carregado = await store.load()
   if (!carregado.ok) throw new Error('store indisponível no teste')
   await store.save(dados, carregado.value.version)

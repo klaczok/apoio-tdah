@@ -11,7 +11,11 @@ import {
   type RotinaRecorrente,
 } from '@/server/rotina/modelo'
 
+import { autenticarComo, USUARIO_TESTE } from '../helpers/sessao'
+
 process.env.PERSISTENCE_DRIVER = 'memory'
+
+beforeEach(() => autenticarComo())
 
 function requisicao(etapa: string, campos: Record<string, string | string[]>) {
   const corpo = new URLSearchParams()
@@ -28,7 +32,7 @@ function requisicao(etapa: string, campos: Record<string, string | string[]>) {
 }
 
 async function estadoAtual() {
-  const lido = await (await getStateStore()).load()
+  const lido = await (await getStateStore(USUARIO_TESTE)).load()
   if (!lido.ok) throw new Error('store indisponível no teste')
   return lido.value.dados
 }
@@ -90,7 +94,7 @@ describe('POST /api/rotina/:etapa', () => {
       categoria: 'saude',
       tipo: 'fixo',
     })
-    const store = await getStateStore()
+    const store = await getStateStore(USUARIO_TESTE)
     const carregado = await store.load()
     if (!carregado.ok) throw new Error('store indisponível')
     await store.save({ ...estadoVazio(), rotina }, carregado.value.version)
@@ -111,7 +115,7 @@ describe('POST /api/rotina/:etapa', () => {
       categoria: 'saude',
       tipo: 'fixo',
     })
-    const store = await getStateStore()
+    const store = await getStateStore(USUARIO_TESTE)
     const carregado = await store.load()
     if (!carregado.ok) throw new Error('store indisponível')
     await store.save({ ...estadoVazio(), rotina }, carregado.value.version)
@@ -213,7 +217,7 @@ describe('POST /api/rotina/:etapa', () => {
   })
 
   it('rejeita bloco de estudo fora das categorias previstas', async () => {
-    const store = await getStateStore()
+    const store = await getStateStore(USUARIO_TESTE)
     const carregado = await store.load()
     if (!carregado.ok) throw new Error('store indisponível')
     await store.save(estadoVazio(), carregado.value.version)
@@ -238,7 +242,7 @@ describe('POST /api/rotina/:etapa', () => {
       planejadoMin: 60,
       realizadoMin: null,
     })
-    const store = await getStateStore()
+    const store = await getStateStore(USUARIO_TESTE)
     const carregado = await store.load()
     if (!carregado.ok) throw new Error('store indisponível')
     await store.save({ ...estadoVazio(), rotina }, carregado.value.version)
@@ -302,7 +306,7 @@ describe('POST /api/rotina/:etapa', () => {
       inicio: '15:00',
       duracaoMin: 60,
     })
-    const store = await getStateStore()
+    const store = await getStateStore(USUARIO_TESTE)
     const carregado = await store.load()
     if (!carregado.ok) throw new Error('store indisponível')
     await store.save({ ...estadoVazio(), rotina }, carregado.value.version)

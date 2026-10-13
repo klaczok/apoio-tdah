@@ -25,14 +25,18 @@ import { dataCivilAmanha, dataCivilHoje, diaSemanaDe, somarDiasCivil } from '@/s
 
 expect.extend(toHaveNoViolations)
 
+import { autenticarComo, USUARIO_TESTE } from '../helpers/sessao'
+
 process.env.PERSISTENCE_DRIVER = 'memory'
+
+beforeEach(() => autenticarComo())
 
 // jsdom não implementa leiaute — as regras de contraste de cor do axe
 // dependem de estilos computados e são verificadas na revisão manual.
 const regras = { rules: { 'color-contrast': { enabled: false } } }
 
 async function salvar(dados: ReturnType<typeof estadoVazio>) {
-  const store = await getStateStore()
+  const store = await getStateStore(USUARIO_TESTE)
   const lido = await store.load()
   if (!lido.ok) throw new Error('store indisponível no teste')
   await store.save(dados, lido.value.version)
@@ -122,7 +126,7 @@ describe('acessibilidade automatizada das jornadas', () => {
     let passado = gerarInstanciaDiaria(semana, rotina, ontem, 1)
     passado = registrarEstado(passado, passado.itens[0].id, 'realizado')
     passado = concluirRevisao(passado, {}, new Date('2026-10-12T21:00:00Z'))
-    const store = await getStateStore()
+    const store = await getStateStore(USUARIO_TESTE)
     const lido = await store.load()
     if (!lido.ok) throw new Error('store indisponível no teste')
     await store.save(

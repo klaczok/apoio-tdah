@@ -15,7 +15,11 @@ import { acrescentarCompromisso, definirSono, rotinaVazia } from '@/server/rotin
 import { dataCivilHoje, diaSemanaDe } from '@/server/tempo'
 import type { InstanciaDiaria } from '@/server/dia/modelo'
 
+import { autenticarComo, USUARIO_TESTE } from '../helpers/sessao'
+
 process.env.PERSISTENCE_DRIVER = 'memory'
+
+beforeEach(() => autenticarComo())
 
 function renderizar(params: Record<string, string> = {}) {
   return HojePage({ searchParams: Promise.resolve(params) }).then(render)
@@ -31,7 +35,7 @@ describe('Área privada', () => {
   })
 
   it('exibe a anotação persistida do dia', async () => {
-    const store = await getStateStore()
+    const store = await getStateStore(USUARIO_TESTE)
     const carregado = await store.load()
     if (!carregado.ok) throw new Error('store indisponível no teste')
     await store.save(
@@ -59,7 +63,7 @@ describe('Área privada', () => {
 
 async function comDiaHoje() {
   const hoje = dataCivilHoje()
-  const store = await getStateStore()
+  const store = await getStateStore(USUARIO_TESTE)
   const lido = await store.load()
   if (!lido.ok) throw new Error('store indisponível no teste')
   let rotina = definirSono(rotinaVazia(), { dormir: '23:00', acordar: '07:00' })
@@ -82,7 +86,7 @@ async function comDiaHoje() {
 
 // Persiste a instância do dia — útil após marcar estados ou decisões.
 async function salvarDia(dia: InstanciaDiaria) {
-  const store = await getStateStore()
+  const store = await getStateStore(USUARIO_TESTE)
   const lido = await store.load()
   if (!lido.ok) throw new Error('store indisponível no teste')
   await store.save(
@@ -130,7 +134,7 @@ describe('revisão do dia', () => {
     const instancia = await comDiaHoje()
     const revisado = registrarEstado(instancia, instancia.itens[0].id, 'realizado')
     const concluida = concluirRevisao(revisado, { energia: 'ok' }, new Date('2026-10-13T20:00:00Z'))
-    const store = await getStateStore()
+    const store = await getStateStore(USUARIO_TESTE)
     const lido = await store.load()
     if (!lido.ok) throw new Error('store indisponível no teste')
     await store.save(
@@ -147,7 +151,7 @@ describe('revisão do dia', () => {
   })
 
   it('sem instância do dia, informa factualmente e aponta o planejamento', async () => {
-    const store = await getStateStore()
+    const store = await getStateStore(USUARIO_TESTE)
     const lido = await store.load()
     if (!lido.ok) throw new Error('store indisponível no teste')
     await store.save(estadoVazio(), lido.value.version)
@@ -217,7 +221,7 @@ describe('destino das pendências', () => {
     const destino = '2026-10-14'
     // Um compromisso no mesmo horário do item movido gera sobreposição na
     // prévia — o usuário vê o conflito antes de confirmar a troca.
-    const store = await getStateStore()
+    const store = await getStateStore(USUARIO_TESTE)
     const lido = await store.load()
     if (!lido.ok) throw new Error('store indisponível no teste')
     let rotina = lido.value.dados.rotina

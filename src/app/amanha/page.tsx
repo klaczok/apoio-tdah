@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import styles from '../configurar/configurar.module.css'
-import { getStateStore } from '@/server/persistence'
+import { redirect } from 'next/navigation'
+import { storeDoUsuario } from '@/server/auth/contexto'
 import { MENSAGENS_ERRO } from '@/server/persistence/mensagens'
 import {
   dataCivilAmanha,
@@ -527,7 +528,9 @@ function NotaDoDia({ instancia, editavel }: { instancia: InstanciaDiaria; editav
 export default async function AmanhaPage({ searchParams }: Props) {
   const params = await searchParams
   const amanha = dataCivilAmanha()
-  const carregado = await (await getStateStore()).load()
+  const store = await storeDoUsuario()
+  if (!store) redirect('/login')
+  const carregado = await store.load()
 
   const erroCarga = !carregado.ok
   const instancia = carregado.ok ? (carregado.value.dados.dias[amanha] ?? null) : null

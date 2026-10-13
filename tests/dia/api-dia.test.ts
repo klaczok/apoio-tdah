@@ -8,6 +8,7 @@ import { confirmarProposta } from '@/server/proposta/modelo'
 import { gerarInstanciaDiaria } from '@/server/dia/gerar'
 import { concluirRevisao, registrarEstado } from '@/server/dia/modelo'
 import { dataCivilAmanha, dataCivilHoje, diaSemanaDe, somarDiasCivil } from '@/server/tempo'
+import { autenticarComo, USUARIO_TESTE } from '../helpers/sessao'
 import {
   acrescentarCompromisso,
   definirSono,
@@ -17,6 +18,8 @@ import {
 } from '@/server/rotina/modelo'
 
 process.env.PERSISTENCE_DRIVER = 'memory'
+
+beforeEach(() => autenticarComo())
 
 function requisicao(campos: Record<string, string>) {
   const corpo = new URLSearchParams()
@@ -30,7 +33,7 @@ function requisicao(campos: Record<string, string>) {
 }
 
 async function estadoAtual() {
-  const lido = await (await getStateStore()).load()
+  const lido = await (await getStateStore(USUARIO_TESTE)).load()
   if (!lido.ok) throw new Error('store indisponível no teste')
   return lido.value
 }
@@ -47,7 +50,7 @@ async function comDiaHoje() {
       tipo: 'fixo',
     })
   )
-  const store = await getStateStore()
+  const store = await getStateStore(USUARIO_TESTE)
   const lido = await store.load()
   if (!lido.ok) throw new Error('store indisponível no teste')
   const instancia = gerarInstanciaDiaria(
@@ -75,7 +78,7 @@ async function comDiaConcluidoOntem() {
       tipo: 'fixo',
     })
   )
-  const store = await getStateStore()
+  const store = await getStateStore(USUARIO_TESTE)
   const lido = await store.load()
   if (!lido.ok) throw new Error('store indisponível no teste')
   let instancia = gerarInstanciaDiaria(
@@ -94,7 +97,7 @@ async function comDiaConcluidoOntem() {
 }
 
 async function comSemanaConfirmada(extra?: (r: RotinaRecorrente) => RotinaRecorrente) {
-  const store = await getStateStore()
+  const store = await getStateStore(USUARIO_TESTE)
   const lido = await store.load()
   if (!lido.ok) throw new Error('store indisponível no teste')
   let rotina = definirSono(rotinaVazia(), { dormir: '23:00', acordar: '07:00' })
@@ -136,7 +139,7 @@ describe('POST /api/dia', () => {
   })
 
   it('planejar sem semana ativa devolve erro factual', async () => {
-    const store = await getStateStore()
+    const store = await getStateStore(USUARIO_TESTE)
     const lido = await store.load()
     if (!lido.ok) throw new Error('store indisponível no teste')
     await store.save(estadoVazio(), lido.value.version)
@@ -786,7 +789,7 @@ describe('revisao-corrigir', () => {
   it('rejeita correção em revisão não concluída', async () => {
     const ontem = somarDiasCivil(dataCivilHoje(), -1)
     await comSemanaConfirmada()
-    const store = await getStateStore()
+    const store = await getStateStore(USUARIO_TESTE)
     const lido = await store.load()
     if (!lido.ok) throw new Error('store indisponível no teste')
     const instancia = gerarInstanciaDiaria(
