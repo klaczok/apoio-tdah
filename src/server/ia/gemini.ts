@@ -24,7 +24,7 @@ export class InterpretadorGemini implements InterpretadorIA {
       'Não invente horários, durações ou compromissos que a pessoa não mencionou.',
       'Respostas da entrevista:',
       JSON.stringify(entrada.respostas),
-      entrada.documentoTexto ? `Documento de apoio (transcritto):\n${entrada.documentoTexto}` : '',
+      entrada.documentoTexto ? `Documento de apoio (transcrito):\n${entrada.documentoTexto}` : '',
     ].join('\n')
 
     let resposta: Response

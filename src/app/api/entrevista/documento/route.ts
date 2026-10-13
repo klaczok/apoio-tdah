@@ -49,13 +49,21 @@ export async function POST(request: Request) {
   }
 
   const bytes = new Uint8Array(await arquivo.arrayBuffer())
+  let texto: string | null = null
+  try {
+    texto = await extrairTextoDocumento(bytes, formato)
+  } catch {
+    // Falha de extração: nada é guardado; a tela oferece remover,
+    // tentar de novo ou seguir sem documento.
+    return redirecionar('/entrevista/documento?erro=extracao')
+  }
   guardarDocumento(identidade.usuarioId, {
     nome: arquivo.name,
     formato,
     tamanho: arquivo.size,
     consentidoEm: new Date().toISOString(),
     bytes,
-    texto: extrairTextoDocumento(bytes, formato),
+    texto,
   })
   return redirecionar('/entrevista/documento?selecionado=1')
 }

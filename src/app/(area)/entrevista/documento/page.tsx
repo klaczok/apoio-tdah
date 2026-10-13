@@ -17,6 +17,8 @@ const ERROS: Record<string, string> = {
   quantidade: 'Só é possível anexar um documento por entrevista.',
   consentimento: 'Para anexar, marque o consentimento específico do documento.',
   entrada: 'Nenhum arquivo foi recebido. Escolha um documento e tente de novo.',
+  extracao:
+    'Não conseguimos ler o texto deste arquivo. Você pode tentar outro ou seguir sem documento.',
 }
 
 function tamanhoParaTexto(bytes: number) {

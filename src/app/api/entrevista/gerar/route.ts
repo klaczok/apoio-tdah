@@ -1,6 +1,6 @@
 import { identidadeAutenticada } from '@/server/auth/contexto'
 import { sessaoDaEntrevista } from '@/server/entrevista/sessao'
-import { obterDocumento } from '@/server/entrevista/documento'
+import { obterDocumento, descartarDocumento } from '@/server/entrevista/documento'
 import { interpretarEntrevista } from '@/server/entrevista/interpretar'
 import { getInterpretador } from '@/server/ia'
 import { getStateStore } from '@/server/persistence'
@@ -37,5 +37,8 @@ export async function POST() {
     lido.value.version
   )
   if (!salvo.ok) return redirecionar('/entrevista/revisao?erro=indisponivel')
+  // Contexto enviado e proposta gerada: o documento transitório não é
+  // mais necessário — descarte imediato (nunca chega ao EstadoPrivado).
+  descartarDocumento(identidade.usuarioId)
   return redirecionar('/entrevista/revisao?gerada=1')
 }
