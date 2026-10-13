@@ -75,6 +75,13 @@
   padding: 0;
 }
 
+.etapaPergunta {
+  margin: 0;
+  font-weight: 600;
+  font-size: 1.05rem;
+  line-height: 1.5;
+}
+
 .opcao {
   display: flex;
   gap: 0.6rem;

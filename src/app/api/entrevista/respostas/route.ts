@@ -5,7 +5,8 @@ import {
   sessaoDaEntrevista,
   valorSessao,
 } from '@/server/entrevista/sessao'
-import { normalizarRespostas } from '@/entrevista/etapas'
+import { normalizarRespostas, PERGUNTAS_PADRAO } from '@/entrevista/etapas'
+import { obterPerguntas } from '@/server/entrevista/material'
 
 // Recebe as respostas das cinco etapas no fim da entrevista e as guarda
 // na sessão efêmera (cookie assinado, sem Max-Age). Nada é gravado no
@@ -29,7 +30,10 @@ export async function POST(request: Request) {
     return Response.json({ erro: 'entrada' }, { status: 400 })
   }
 
-  const respostas = normalizarRespostas((corpo as { respostas?: unknown })?.respostas)
+  // As respostas são validadas contra as perguntas que a IA formulou —
+  // ou o banco de reserva, quando a entrevista seguiu sem a IA.
+  const perguntas = obterPerguntas(identidade.usuarioId) ?? PERGUNTAS_PADRAO
+  const respostas = normalizarRespostas((corpo as { respostas?: unknown })?.respostas, perguntas)
   const valor = await valorSessao(segredo, { ...sessao, respostas })
   const resposta = Response.json({ ok: true })
   resposta.headers.append(

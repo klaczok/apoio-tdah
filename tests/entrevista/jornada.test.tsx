@@ -8,17 +8,24 @@ import RevisaoPage from '@/app/(area)/entrevista/revisao/page'
 import ConcluidaPage from '@/app/(area)/entrevista/concluida/page'
 import { POST as postConsentimento } from '@/app/api/entrevista/consentimento/route'
 import { POST as postRespostas } from '@/app/api/entrevista/respostas/route'
+import { GET as getPerguntas } from '@/app/api/entrevista/perguntas/route'
 import { POST as postDocumento } from '@/app/api/entrevista/documento/route'
 import { POST as postGerar } from '@/app/api/entrevista/gerar/route'
 import { POST as postConfirmar } from '@/app/api/entrevista/confirmar/route'
 import { GET as getSair } from '@/app/api/entrevista/sair/route'
 import { ENTREVISTA_COOKIE } from '@/server/entrevista/cookie'
 import { obterDocumento, descartarDocumento } from '@/server/entrevista/documento'
-import { obterRotinaInterpretada, descartarRotinaInterpretada } from '@/server/entrevista/material'
+import {
+  obterRotinaInterpretada,
+  obterPerguntas,
+  descartarRotinaInterpretada,
+  descartarPerguntas,
+} from '@/server/entrevista/material'
 import { getStateStore } from '@/server/persistence'
 import { estadoVazio } from '@/server/persistence/estado'
 import type { EstadoPrivado } from '@/server/persistence/estado'
 import type { ResultadoInterpretacao } from '@/server/ia/interpretador'
+import type { ResultadoPerguntas } from '@/server/ia/entrevistador'
 import { autenticarComo, consentirEntrevista, limparSessao, USUARIO_TESTE } from '../helpers/sessao'
 
 process.env.PERSISTENCE_DRIVER = 'memory'
@@ -30,7 +37,8 @@ const regras = { rules: { 'color-contrast': { enabled: false } } }
 
 const globalState = globalThis as {
   __respostaIA?: ResultadoInterpretacao
-  __entradaIA?: { documentoTexto: string | null }
+  __entradaIA?: { documentoTexto: string | null; perguntas?: unknown }
+  __perguntasIA?: ResultadoPerguntas
 }
 
 // Aplica o Set-Cookie da rota na "sessão" do teste, como o navegador
@@ -91,8 +99,16 @@ async function preparar() {
   limparSessao()
   delete globalState.__respostaIA
   delete globalState.__entradaIA
+  delete globalState.__perguntasIA
   descartarDocumento(USUARIO_TESTE)
   descartarRotinaInterpretada(USUARIO_TESTE)
+  descartarPerguntas(USUARIO_TESTE)
+  // O wizard montado nas páginas faz fetch real; devolvemos as
+  // perguntas da jornada para o efeito resolver limpo.
+  global.fetch = jest.fn(async () => ({
+    ok: true,
+    json: async () => ({ perguntas: PERGUNTAS_JORNADA }),
+  })) as unknown as typeof fetch
   await autenticarComo()
   const store = await getStateStore(USUARIO_TESTE)
   const lido = await store.load()
@@ -106,15 +122,28 @@ async function consentir() {
 }
 
 const RESPOSTAS_JORNADA = {
-  objetivo: { selecionadas: ['estudos'], texto: 'faculdade' },
-  'horarios-fixos': { selecionadas: ['trabalho'], texto: '' },
-  'cuidados-basicos': { selecionadas: ['sono-regular', 'refeicoes'], texto: '' },
-  'responsabilidades-dificuldades': { selecionadas: ['comecar'], texto: '' },
-  'preferencias-energia': { selecionadas: ['manha'], texto: '' },
+  p1: { selecionadas: [], texto: 'faculdade' },
 }
 
+// As cinco perguntas que a IA (fake) formula na jornada — a entrevista
+// inteira é conduzida pela IA, como um psiquiatra em primeira consulta.
+const PERGUNTAS_JORNADA = [
+  { id: 'p1', titulo: 'O que importa agora', pergunta: 'O que mais importa para você?' },
+  { id: 'p2', titulo: 'Horários fixos', pergunta: 'Que compromissos têm hora marcada?' },
+  { id: 'p3', titulo: 'Sono e cuidado', pergunta: 'Que horas você dorme e acorda?' },
+  { id: 'p4', titulo: 'Dificuldades', pergunta: 'O que dificulta organizar o dia?' },
+  { id: 'p5', titulo: 'Energia', pergunta: 'Quando sua energia está mais alta?' },
+]
+
 async function responder() {
-  const resposta = await postRespostas(requisicaoJson({ respostas: RESPOSTAS_JORNADA }))
+  // O wizard busca as perguntas que a IA formulou e responde por id.
+  globalState.__perguntasIA = { ok: true, perguntas: PERGUNTAS_JORNADA }
+  const lista = (await (await getPerguntas()).json()) as { perguntas: { id: string }[] }
+  const respostas = Object.fromEntries(
+    lista.perguntas.map((p) => [p.id, { selecionadas: [], texto: '' }])
+  )
+  respostas.p1!.texto = 'faculdade'
+  const resposta = await postRespostas(requisicaoJson({ respostas }))
   expect(resposta.status).toBe(200)
   aplicarCookies(resposta)
 }
@@ -177,6 +206,8 @@ describe('jornada completa da entrevista', () => {
     const gerada = await postGerar()
     expect(gerada.headers.get('location')).toBe('/entrevista/revisao?gerada=1')
     expect(globalState.__entradaIA?.documentoTexto).toBe('trabalho seg a sex 9h as 15h')
+    // As perguntas que a IA formulou dão contexto à interpretação.
+    expect(globalState.__entradaIA?.perguntas).toHaveLength(5)
     dados = await estado()
     expect(dados.propostaSemanal).not.toBeNull()
     expect(dados.semanaAtiva).toBeNull()
@@ -269,6 +300,7 @@ describe('jornada completa da entrevista', () => {
     expect(cookie).toContain('Max-Age=0')
     expect(obterDocumento(USUARIO_TESTE)).toBeNull()
     expect(obterRotinaInterpretada(USUARIO_TESTE)).toBeNull()
+    expect(obterPerguntas(USUARIO_TESTE)).toBeNull()
 
     // Nada persistiu: EstadoPrivado continua vazio de respostas,
     // documento e qualquer material de IA.
