@@ -30,8 +30,8 @@ export async function createStateStore(
     // (PERSISTENCE_TABLE), produção usa o padrão.
     return new PostgresStateStore(
       getPool(url),
-      env.PERSISTENCE_TABLE,
-      proprietarioDoEstado(usuarioId)
+      proprietarioDoEstado(usuarioId),
+      env.PERSISTENCE_TABLE
     )
   } catch {
     return storeIndisponivel()
@@ -45,11 +45,15 @@ export function urlPostgresIntegracao(env: NodeJS.ProcessEnv): string | undefine
 }
 
 export function getStateStore(usuarioId: string): Promise<StateStore> {
+  // A chave do cache é o proprietário (linha), não o sub da sessão — assim
+  // 'usuario-unico' e 'usuario' compartilham o mesmo store em qualquer
+  // driver, espelhando a linha única do Postgres durante a transição.
+  const proprietario = proprietarioDoEstado(usuarioId)
   const cache = (globalState.__estadoStores ??= new Map())
-  let store = cache.get(usuarioId)
+  let store = cache.get(proprietario)
   if (!store) {
-    store = createStateStore(process.env, usuarioId)
-    cache.set(usuarioId, store)
+    store = createStateStore(process.env, proprietario)
+    cache.set(proprietario, store)
   }
   return store
 }

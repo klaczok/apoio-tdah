@@ -48,7 +48,7 @@ const cenarios: Cenario[] = [
         query: (text, params) =>
           quebrado ? Promise.reject(new Error('falha simulada')) : pool.query(text, params),
       }
-      const store = new PostgresStateStore(proxy, 'estado_usuario', 'u-contrato')
+      const store = new PostgresStateStore(proxy, 'u-contrato')
       return {
         store,
         corromper: async (valor, schemaVersion) => {
@@ -154,11 +154,31 @@ describe.each(cenarios)('contrato StateStore — $nome', ({ preparar }) => {
     }
   })
 
-  it('isola dados entre tabelas no mesmo banco — preview não vê produção', async () => {
+  it('não retorna hash de credencial nas leituras comuns', async () => {
+    const { store } = await preparar()
+    await store.save(dados({ '2026-10-09': 'nota' }), 0)
+
+    const lido = await store.load()
+    const serializado = JSON.stringify(lido.ok ? lido.value : lido.error)
+
+    expect(serializado).not.toContain('scrypt')
+    expect(serializado).not.toContain('password')
+    expect(serializado).not.toContain('senha')
+  })
+})
+
+// Casos exclusivos do adapter Postgres: exercitam tabela, proprietário e
+// concorrência de linha — sem correspondente no adapter de memória.
+describe('PostgresStateStore — isolamento por proprietário', () => {
+  function novoPool(): Queryable {
     const db: IMemoryDb = newDb()
-    const pool = new (db.adapters.createPg().Pool)() as unknown as Queryable
-    const producao = new PostgresStateStore(pool, 'estado_usuario', 'u-contrato')
-    const preview = new PostgresStateStore(pool, 'estado_usuario_preview', 'u-contrato')
+    return new (db.adapters.createPg().Pool)() as unknown as Queryable
+  }
+
+  it('isola dados entre tabelas no mesmo banco — preview não vê produção', async () => {
+    const pool = novoPool()
+    const producao = new PostgresStateStore(pool, 'u-contrato')
+    const preview = new PostgresStateStore(pool, 'u-contrato', 'estado_usuario_preview')
 
     await producao.save(dados({ '2026-10-09': 'dado de produção' }), 0)
 
@@ -172,19 +192,17 @@ describe.each(cenarios)('contrato StateStore — $nome', ({ preparar }) => {
   })
 
   it('rejeita nome de tabela que não é identificador seguro', async () => {
-    const db: IMemoryDb = newDb()
-    const pool = new (db.adapters.createPg().Pool)() as unknown as Queryable
+    const pool = novoPool()
 
     for (const nome of ['estado; DROP TABLE x', 'estado-usuario', '1tabela', '']) {
-      expect(() => new PostgresStateStore(pool, nome, 'u-contrato')).toThrow()
+      expect(() => new PostgresStateStore(pool, 'u-contrato', nome)).toThrow()
     }
   })
 
   it('duas contas no mesmo banco não leem nem alteram o estado uma da outra', async () => {
-    const db: IMemoryDb = newDb()
-    const pool = new (db.adapters.createPg().Pool)() as unknown as Queryable
-    const alice = new PostgresStateStore(pool, 'estado_usuario', 'u-alice')
-    const bob = new PostgresStateStore(pool, 'estado_usuario', 'u-bob')
+    const pool = novoPool()
+    const alice = new PostgresStateStore(pool, 'u-alice')
+    const bob = new PostgresStateStore(pool, 'u-bob')
 
     expect(await bob.load()).toEqual({
       ok: true,
@@ -202,10 +220,9 @@ describe.each(cenarios)('contrato StateStore — $nome', ({ preparar }) => {
   })
 
   it('concorrência otimista é independente por usuário', async () => {
-    const db: IMemoryDb = newDb()
-    const pool = new (db.adapters.createPg().Pool)() as unknown as Queryable
-    const alice = new PostgresStateStore(pool, 'estado_usuario', 'u-alice')
-    const bob = new PostgresStateStore(pool, 'estado_usuario', 'u-bob')
+    const pool = novoPool()
+    const alice = new PostgresStateStore(pool, 'u-alice')
+    const bob = new PostgresStateStore(pool, 'u-bob')
 
     expect(await alice.save(dados({}), 0)).toEqual({ ok: true, value: 1 })
     expect(await bob.save(dados({}), 0)).toEqual({ ok: true, value: 1 })
@@ -216,25 +233,12 @@ describe.each(cenarios)('contrato StateStore — $nome', ({ preparar }) => {
   })
 
   it('primeira gravação concorrente na mesma conta confirma só uma', async () => {
-    const db: IMemoryDb = newDb()
-    const pool = new (db.adapters.createPg().Pool)() as unknown as Queryable
-    const store = new PostgresStateStore(pool, 'estado_usuario', 'u-novo')
+    const pool = novoPool()
+    const store = new PostgresStateStore(pool, 'u-novo')
 
     const [a, b] = await Promise.all([store.save(dados({}), 0), store.save(dados({}), 0)])
 
     expect([a, b].filter((r) => r.ok)).toHaveLength(1)
     expect([a, b].filter((r) => !r.ok && r.error.kind === 'conflito-versao')).toHaveLength(1)
-  })
-
-  it('não retorna hash de credencial nas leituras comuns', async () => {
-    const { store } = await preparar()
-    await store.save(dados({ '2026-10-09': 'nota' }), 0)
-
-    const lido = await store.load()
-    const serializado = JSON.stringify(lido.ok ? lido.value : lido.error)
-
-    expect(serializado).not.toContain('scrypt')
-    expect(serializado).not.toContain('password')
-    expect(serializado).not.toContain('senha')
   })
 })

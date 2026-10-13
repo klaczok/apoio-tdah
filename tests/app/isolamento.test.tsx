@@ -20,21 +20,10 @@ import {
 } from '@/server/rotina/modelo'
 import { dataCivilHoje, diaSemanaDe } from '@/server/tempo'
 import { autenticarComo, autenticarComoLegado, limparSessao } from '../helpers/sessao'
+import { formPost } from '../helpers/http'
 
 const ALICE = 'u-alice'
 const BOB = 'u-bob'
-
-function formPost(url: string, campos: Record<string, string | string[]>) {
-  const corpo = new URLSearchParams()
-  for (const [chave, valor] of Object.entries(campos)) {
-    for (const v of Array.isArray(valor) ? valor : [valor]) corpo.append(chave, v)
-  }
-  return new Request(`http://localhost${url}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    body: corpo,
-  })
-}
 
 const rotinaPost = (etapa: string, campos: Record<string, string | string[]>) =>
   postRotina(formPost(`/api/rotina/${etapa}`, campos), {
@@ -178,7 +167,11 @@ describe('isolamento do EstadoPrivado por usuário autenticado', () => {
 
     // O legado compartilha a linha histórica 'usuario' — mapeada em
     // proprietarioDoEstado — até a migração explícita do spec seção 8.
+    // A mesma linha deve ser visível pelos dois identificadores, em
+    // qualquer driver.
     const legado = await estadoDe('usuario-unico')
     expect(legado.notasPorDia['2026-10-09']).toBe('do legado')
+    const linha = await estadoDe('usuario')
+    expect(linha.notasPorDia['2026-10-09']).toBe('do legado')
   })
 })

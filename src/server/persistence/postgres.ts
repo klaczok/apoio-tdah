@@ -30,8 +30,8 @@ export class PostgresStateStore implements StateStore {
 
   constructor(
     private db: Queryable,
-    tabela = TABELA_PADRAO,
-    proprietario: string
+    proprietario: string,
+    tabela = TABELA_PADRAO
   ) {
     if (!IDENTIFICADOR.test(tabela)) {
       throw new SchemaInvalidoError('nome de tabela inválido')

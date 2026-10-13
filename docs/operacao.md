@@ -57,7 +57,7 @@ npx vercel rollback <deployment-url>        # promove o deploy anterior
 
 Rollback de dados:
 
-- O estado é uma única linha JSONB na tabela do ambiente (`estado_usuario`). O Neon mantém histórico/branching — restaurar pelo console do Neon ou por backup exportado.
+- O estado é uma linha JSONB por usuário na tabela do ambiente (`estado_usuario`), chaveada pelo ID do proprietário — a conta legada usa a linha `usuario`. O Neon mantém histórico/branching — restaurar pelo console do Neon ou por backup exportado.
 - Regressão de schema: `SCHEMA_VERSION` é incrementado a cada mudança de formato e migrações rodam no carregamento. Para voltar atrás, restaurar o backup do JSON ou editar a linha manualmente no console do Neon.
 
 Recuperação de acesso:
