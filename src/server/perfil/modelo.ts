@@ -106,11 +106,16 @@ export function validarPerfil(raw: unknown): PerfilOnboarding {
   }
   if (
     perfil.idade != null &&
-    (!Number.isInteger(perfil.idade) || (perfil.idade as number) < 5 || (perfil.idade as number) > 120)
+    (!Number.isInteger(perfil.idade) ||
+      (perfil.idade as number) < 5 ||
+      (perfil.idade as number) > 120)
   ) {
     throw new SchemaInvalidoError('perfil.idade inválida')
   }
-  if (perfil.motivoUso != null && !(MOTIVOS_USO as readonly string[]).includes(perfil.motivoUso as string)) {
+  if (
+    perfil.motivoUso != null &&
+    !(MOTIVOS_USO as readonly string[]).includes(perfil.motivoUso as string)
+  ) {
     throw new SchemaInvalidoError('perfil.motivoUso inválido')
   }
   if (
@@ -144,9 +149,10 @@ export function descreverPerfil(perfil: PerfilOnboarding | null): string | null 
   if (perfil.nome) linhas.push(`Nome: ${perfil.nome}`)
   if (perfil.idade != null) linhas.push(`Idade: ${perfil.idade} anos`)
   if (perfil.motivoUso) {
-    const motivo = perfil.motivoUso === 'outro' && perfil.motivoOutro
-      ? perfil.motivoOutro
-      : ROTULOS_MOTIVO[perfil.motivoUso]
+    const motivo =
+      perfil.motivoUso === 'outro' && perfil.motivoOutro
+        ? perfil.motivoOutro
+        : ROTULOS_MOTIVO[perfil.motivoUso]
     linhas.push(`Motivo de usar o produto: ${motivo}`)
   }
   if (perfil.necessidadePrincipal) {

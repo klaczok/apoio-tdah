@@ -3,7 +3,12 @@ import { ShellPublico } from '@/app/_components/shell'
 import { Aviso } from '@/app/_components/ui'
 import ui from '@/app/_components/ui.module.css'
 import { SENHA_MINIMA } from '@/server/auth/cadastro'
-import { MOTIVOS_USO, NECESSIDADES, ROTULOS_MOTIVO, ROTULOS_NECESSIDADE } from '@/server/perfil/modelo'
+import {
+  MOTIVOS_USO,
+  NECESSIDADES,
+  ROTULOS_MOTIVO,
+  ROTULOS_NECESSIDADE,
+} from '@/server/perfil/modelo'
 import styles from '../login/login.module.css'
 
 type Props = {
@@ -136,7 +141,13 @@ export default async function CadastroPage({ searchParams }: Props) {
             </label>
             <label className={ui.campo} htmlFor="motivoOutro">
               Se foi outro motivo, conte em uma frase
-              <input className={ui.entrada} id="motivoOutro" name="motivoOutro" type="text" maxLength={200} />
+              <input
+                className={ui.entrada}
+                id="motivoOutro"
+                name="motivoOutro"
+                type="text"
+                maxLength={200}
+              />
             </label>
             <label className={ui.campo} htmlFor="necessidadePrincipal">
               O que mais pesa hoje?
