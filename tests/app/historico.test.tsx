@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
-import HistoricoPage from '@/app/historico/page'
-import HistoricoDiaPage from '@/app/historico/[data]/page'
+import HistoricoPage from '@/app/(area)/historico/page'
+import HistoricoDiaPage from '@/app/(area)/historico/[data]/page'
 import { getStateStore } from '@/server/persistence'
 import { estadoVazio } from '@/server/persistence/estado'
 import { gerarInstanciaDiaria } from '@/server/dia/gerar'

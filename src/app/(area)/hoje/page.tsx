@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import styles from './hoje.module.css'
+import ui from '@/app/_components/ui.module.css'
+import { Aviso, CabecalhoPagina, EstadoVazio } from '@/app/_components/ui'
 import { storeDoUsuario } from '@/server/auth/contexto'
 import { MENSAGENS_ERRO } from '@/server/persistence/mensagens'
 import { avaliarAlertas } from '@/server/dia/alertas'
@@ -39,7 +41,7 @@ function FormEstado({ instancia, id }: { instancia: InstanciaDiaria; id: string 
       <input type="hidden" name="acao" value="revisar-item" />
       <input type="hidden" name="data" value={instancia.data} />
       <input type="hidden" name="id" value={id} />
-      <label className={styles.srOnly} htmlFor={`estado-${id}`}>
+      <label className="sr-only" htmlFor={`estado-${id}`}>
         Estado do item
       </label>
       <select id={`estado-${id}`} name="estado" defaultValue={atual ?? ''}>
@@ -104,7 +106,7 @@ function FormDestino({
         <input type="hidden" name="acao" value="pendencia-decidir" />
         <input type="hidden" name="data" value={instancia.data} />
         <input type="hidden" name="id" value={id} />
-        <label className={styles.srOnly} htmlFor={`destino-tipo-${id}`}>
+        <label className="sr-only" htmlFor={`destino-tipo-${id}`}>
           Destino da pendência
         </label>
         <select id={`destino-tipo-${id}`} name="tipo" defaultValue="">
@@ -117,11 +119,11 @@ function FormDestino({
             </option>
           ))}
         </select>
-        <label className={styles.srOnly} htmlFor={`escopo-${id}`}>
+        <label className="sr-only" htmlFor={`escopo-${id}`}>
           Novo escopo ou duração
         </label>
         <input id={`escopo-${id}`} name="escopo" type="text" placeholder="Novo escopo" />
-        <label className={styles.srOnly} htmlFor={`partes-${id}`}>
+        <label className="sr-only" htmlFor={`partes-${id}`}>
           Partes (uma por linha)
         </label>
         <textarea
@@ -137,7 +139,7 @@ function FormDestino({
         <input type="hidden" name="acao" value="pendencia-prever" />
         <input type="hidden" name="data" value={instancia.data} />
         <input type="hidden" name="id" value={id} />
-        <label className={styles.srOnly} htmlFor={`troca-${id}`}>
+        <label className="sr-only" htmlFor={`troca-${id}`}>
           Dia de destino
         </label>
         <input
@@ -195,32 +197,16 @@ export default async function HojePage({ searchParams }: Props) {
 
   return (
     <main className={styles.container}>
-      <h1 className={styles.title}>Hoje</h1>
+      <CabecalhoPagina titulo="Hoje" subtitulo="Você só precisa olhar para o próximo passo." />
 
-      {params.salvo === '1' && (
-        <p role="status" className={styles.feedback}>
-          Anotação salva.
-        </p>
-      )}
-      {params.revisado === '1' && (
-        <p role="status" className={styles.feedback}>
-          Revisão concluída.
-        </p>
-      )}
-      {params.estado === '1' && (
-        <p role="status" className={styles.feedback}>
-          Estado registrado.
-        </p>
-      )}
-      {params.decisao === '1' && (
-        <p role="status" className={styles.feedback}>
-          Decisão registrada.
-        </p>
-      )}
+      {params.salvo === '1' && <Aviso tipo="sucesso">Anotação salva.</Aviso>}
+      {params.revisado === '1' && <Aviso tipo="sucesso">Revisão concluída.</Aviso>}
+      {params.estado === '1' && <Aviso tipo="sucesso">Estado registrado.</Aviso>}
+      {params.decisao === '1' && <Aviso tipo="sucesso">Decisão registrada.</Aviso>}
       {(mensagemErro || erroCarga) && (
-        <p role="alert" className={styles.erro}>
+        <Aviso tipo="erro">
           {mensagemErro ?? 'Não foi possível carregar suas anotações agora. Tente recarregar.'}
-        </p>
+        </Aviso>
       )}
 
       {instancia ? (
@@ -333,7 +319,7 @@ export default async function HojePage({ searchParams }: Props) {
                   Nota (opcional)
                 </label>
                 <textarea className={styles.textarea} id="nota-revisao" name="nota" rows={3} />
-                <button className={styles.salvar} type="submit">
+                <button className={`${ui.botao} ${ui.botaoPrimario} ${styles.alinhado}`} type="submit">
                   Concluir revisão
                 </button>
               </form>
@@ -341,7 +327,9 @@ export default async function HojePage({ searchParams }: Props) {
           )}
         </section>
       ) : (
-        <p>Nenhum planejamento para hoje.</p>
+        <EstadoVazio titulo="Nenhum planejamento para hoje">
+          <p>Quando a semana estiver planejada, os passos de hoje aparecem aqui.</p>
+        </EstadoVazio>
       )}
 
       <form className={styles.nota} action="/api/notas/dia" method="post">
@@ -357,26 +345,14 @@ export default async function HojePage({ searchParams }: Props) {
           defaultValue={nota}
           disabled={erroCarga}
         />
-        <button className={styles.salvar} type="submit" disabled={erroCarga}>
+        <button className={`${ui.botao} ${ui.botaoPrimario} ${styles.alinhado}`} type="submit" disabled={erroCarga}>
           Salvar anotação
         </button>
       </form>
 
-      <Link href="/amanha">Planejar amanhã</Link>
-
-      <Link href="/semana">Ver a semana</Link>
-
-      <Link href="/historico">Histórico</Link>
-
-      <Link href="/proposta">Proposta da semana</Link>
-
-      <Link href="/configurar">Configurar rotina</Link>
-
-      <form action="/api/auth/logout" method="post">
-        <button className={styles.logout} type="submit">
-          Sair
-        </button>
-      </form>
+      <Link className={styles.proximo} href="/amanha">
+        Planejar amanhã →
+      </Link>
     </main>
   )
 }

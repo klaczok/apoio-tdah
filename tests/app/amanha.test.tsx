@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react'
-import AmanhaPage from '@/app/amanha/page'
+import AmanhaPage from '@/app/(area)/amanha/page'
 import { getStateStore } from '@/server/persistence'
 import { estadoVazio, type EstadoPrivado } from '@/server/persistence/estado'
 import { gerarInstanciaDiaria } from '@/server/dia/gerar'

@@ -1,26 +1,104 @@
+/*
+ * Tokens semânticos da identidade visual (protótipo PRD v2):
+ * planner acolhedor, superfícies quentes, verde sálvia, títulos
+ * editoriais e ornamentação discreta. Componentes consomem estes
+ * tokens — nunca valores literais de cor.
+ */
 :root {
-  --color-bg: #ffffff;
-  --color-text: #1a1a1a;
-  --color-muted: #595959;
-  --color-accent: #2563eb;
-  --color-accent-contrast: #ffffff;
-  --space-xs: 0.5rem;
-  --space-sm: 1rem;
-  --space-md: 1.5rem;
-  --space-lg: 2rem;
-  --font-body: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-size-base: 1rem;
-  --line-height: 1.5;
-}
+  /* Superfícies */
+  --superficie-pagina: #f3f1e9;
+  --superficie-cartao: #fffdfa;
+  --superficie-lateral: #fbfaf5;
+  --superficie-suave: #e7f0e9;
+  --superficie-quente: #f7f3e8;
+  --superficie-invertida: #26332e;
 
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
+  /* Texto */
+  --texto-primario: #21332d;
+  --texto-secundario: #5f6d66;
+  --texto-terciario: #66716a;
+  --texto-invertido: #ffffff;
+
+  /* Ações */
+  --acao-primaria: #315e4e;
+  --acao-primaria-forte: #264a3e;
+  --acao-contraste: #ffffff;
+  --acao-secundaria-fundo: #fffdfa;
+  --acao-secundaria-borda: #dfe5de;
+
+  /* Feedback */
+  --feedback-sucesso: #2f6f4f;
+  --feedback-sucesso-fundo: #e5f0e9;
+  --feedback-erro: #9c3d33;
+  --feedback-erro-fundo: #f9e9e6;
+  --feedback-info-fundo: #edf3ed;
+  --feedback-atencao-fundo: #f5efdd;
+
+  /* Categorias do domínio (cor + fundo calmo) */
+  --categoria-trabalho: #5278a4;
+  --categoria-trabalho-fundo: #e8eef7;
+  --categoria-saude: #54816d;
+  --categoria-saude-fundo: #e6f0e9;
+  --categoria-familia: #c2795e;
+  --categoria-familia-fundo: #faebe5;
+  --categoria-estudo: #8072a3;
+  --categoria-estudo-fundo: #efebf7;
+  --categoria-musica: #ab7190;
+  --categoria-musica-fundo: #f7eaf0;
+  --categoria-respiro: #9a845c;
+  --categoria-respiro-fundo: #f4f0e3;
+
+  /* Proteção (horário fixo que pede confirmação) */
+  --protecao: #8a6d35;
+  --protecao-fundo: #f3eddb;
+
+  /* Tipografia */
+  --fonte-titulo: var(--fonte-serif), Georgia, 'Times New Roman', serif;
+  --fonte-corpo: var(--fonte-sans), system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --texto-2xl: clamp(2.25rem, 4vw, 3.625rem);
+  --texto-xl: 1.75rem;
+  --texto-lg: 1.25rem;
+  --texto-base: 0.9375rem;
+  --texto-sm: 0.8125rem;
+  --texto-xs: 0.6875rem;
+  --altura-linha: 1.5;
+  --altura-titulo: 1.05;
+
+  /* Espaçamento */
+  --espaco-2xs: 0.25rem;
+  --espaco-xs: 0.5rem;
+  --espaco-sm: 0.75rem;
+  --espaco-md: 1rem;
+  --espaco-lg: 1.5rem;
+  --espaco-xl: 2rem;
+  --espaco-2xl: 3rem;
+
+  /* Bordas e raios */
+  --borda-sutil: #dfe5de;
+  --borda-campo: #cbd4cc;
+  --raio-sm: 0.5rem;
+  --raio-md: 0.8125rem;
+  --raio-lg: 1rem;
+  --raio-xl: 1.5rem;
+  --raio-pill: 999px;
+
+  /* Sombras */
+  --sombra-cartao: 0 24px 60px rgba(40, 58, 49, 0.09);
+  --sombra-botao: 0 8px 20px rgba(49, 94, 78, 0.15);
+  --sombra-botao-forte: 0 5px 15px rgba(49, 94, 78, 0.19);
+  --sombra-elevada: 0 25px 80px rgba(26, 40, 34, 0.38);
+  --sombra-foco-evento: 0 8px 18px rgba(35, 55, 46, 0.13);
+  --sombra-navegacao: 0 -8px 24px rgba(35, 52, 45, 0.07);
+
+  /* Brilho decorativo do topo da área de conteúdo */
+  --superficie-brilho: #e7ede4;
+
+  /* Movimento */
+  --movimento-rapido: 150ms ease;
+  --movimento-padrao: 250ms ease;
+
+  /* Foco — tom quente, visível sobre superfícies claras */
+  --foco: #b0632c;
 }
 
 * {
@@ -34,14 +112,48 @@ body {
 }
 
 body {
-  background: var(--color-bg);
-  color: var(--color-text);
-  font-family: var(--font-body);
-  font-size: var(--font-size-base);
-  line-height: var(--line-height);
+  background: var(--superficie-pagina);
+  color: var(--texto-primario);
+  font-family: var(--fonte-corpo);
+  font-size: var(--texto-base);
+  line-height: var(--altura-linha);
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--fonte-titulo);
+  font-weight: 400;
 }
 
 :focus-visible {
-  outline: 3px solid var(--color-accent);
+  outline: 3px solid var(--foco);
   outline-offset: 2px;
+}
+
+/* Utilitário para texto exclusivo de tecnologia assistiva. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

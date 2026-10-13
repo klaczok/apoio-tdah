@@ -1,0 +1,194 @@
+/* Componentes fundamentais compartilhados — tokens semânticos apenas. */
+
+/* Cabeçalho de página */
+.cabecalho {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 28px;
+  margin: 8px 0 28px;
+}
+
+.cabecalhoCompacto {
+  align-items: center;
+  margin-top: 20px;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--acao-primaria);
+  font-size: var(--texto-xs);
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.titulo {
+  margin: 6px 0 3px;
+  font-size: var(--texto-2xl);
+  line-height: 1;
+  letter-spacing: -0.035em;
+}
+
+.subtitulo {
+  margin: 0;
+  color: var(--texto-secundario);
+  font-size: var(--texto-base);
+}
+
+.acoes {
+  display: flex;
+  align-items: center;
+  gap: var(--espaco-xs);
+}
+
+/* Ações */
+.botao {
+  display: inline-flex;
+  min-height: 46px;
+  padding: 0 18px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--raio-md);
+  font: inherit;
+  font-size: var(--texto-sm);
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.botaoPrimario {
+  color: var(--acao-contraste);
+  background: var(--acao-primaria);
+  border: 1px solid var(--acao-primaria);
+  box-shadow: var(--sombra-botao);
+}
+
+.botaoPrimario:hover {
+  background: var(--acao-primaria-forte);
+}
+
+.botaoSecundario {
+  color: var(--texto-primario);
+  background: var(--acao-secundaria-fundo);
+  border: 1px solid var(--acao-secundaria-borda);
+}
+
+/* Cartões e seções */
+.cartao {
+  padding: var(--espaco-xl);
+  background: var(--superficie-cartao);
+  border: 1px solid var(--borda-sutil);
+  border-radius: var(--raio-xl);
+  box-shadow: var(--sombra-cartao);
+}
+
+.cartaoSuave {
+  background: var(--superficie-suave);
+}
+
+.secao {
+  display: grid;
+  gap: var(--espaco-md);
+}
+
+.secaoTitulo {
+  margin: 0;
+  font-size: var(--texto-lg);
+  line-height: var(--altura-titulo);
+}
+
+/* Tags e marcadores */
+.tag {
+  display: inline-block;
+  padding: 6px 9px;
+  color: var(--acao-primaria);
+  background: var(--superficie-suave);
+  border-radius: var(--raio-pill);
+  font-size: var(--texto-xs);
+  font-weight: 700;
+}
+
+/* Mensagens */
+.aviso {
+  display: flex;
+  gap: var(--espaco-sm);
+  padding: 14px 16px;
+  border-radius: var(--raio-lg);
+  font-size: var(--texto-sm);
+  line-height: 1.5;
+}
+
+.avisoInfo {
+  color: var(--texto-secundario);
+  background: var(--feedback-info-fundo);
+}
+
+.avisoSucesso {
+  color: var(--feedback-sucesso);
+  background: var(--feedback-sucesso-fundo);
+}
+
+.avisoErro {
+  color: var(--feedback-erro);
+  background: var(--feedback-erro-fundo);
+}
+
+/* Campos */
+.campo {
+  display: grid;
+  gap: 7px;
+  color: var(--texto-secundario);
+  font-size: var(--texto-sm);
+  font-weight: 700;
+}
+
+.entrada {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 13px;
+  color: var(--texto-primario);
+  background: var(--superficie-cartao);
+  border: 1px solid var(--borda-campo);
+  border-radius: var(--raio-md);
+  font: inherit;
+  font-size: var(--texto-sm);
+}
+
+/* Estado vazio */
+.vazio {
+  display: grid;
+  gap: var(--espaco-sm);
+  justify-items: center;
+  padding: var(--espaco-2xl) var(--espaco-xl);
+  color: var(--texto-secundario);
+  background: var(--superficie-cartao);
+  border: 1px dashed var(--borda-campo);
+  border-radius: var(--raio-xl);
+  text-align: center;
+}
+
+.vazioTitulo {
+  margin: 0;
+  font-size: var(--texto-xl);
+}
+
+@media (max-width: 820px) {
+  .cabecalho {
+    align-items: flex-start;
+    margin: 3px 2px 20px;
+  }
+
+  .titulo {
+    font-size: 2.25rem;
+  }
+
+  .subtitulo {
+    font-size: var(--texto-sm);
+  }
+
+  .cartao {
+    padding: var(--espaco-lg);
+    border-radius: var(--raio-lg);
+  }
+}

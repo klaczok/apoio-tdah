@@ -1,7 +1,7 @@
 import { redirecionar } from '@/server/http'
 import { storeDoUsuario } from '@/server/auth/contexto'
 import { erroParaParam } from '@/server/persistence/mensagens'
-import { ehEtapa, ETAPAS_DE_LISTA, proximaEtapa, type Etapa } from '@/app/configurar/etapas'
+import { ehEtapa, ETAPAS_DE_LISTA, proximaEtapa, type Etapa } from '@/app/(area)/configurar/etapas'
 import {
   acrescentarBlocoEstudo,
   acrescentarBlocoMusica,

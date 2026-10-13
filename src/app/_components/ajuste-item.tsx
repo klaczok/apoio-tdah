@@ -1,4 +1,4 @@
-import styles from '../configurar/configurar.module.css'
+import styles from '@/app/(area)/configurar/configurar.module.css'
 import type { ItemDia, Tarefa } from '@/server/dia/modelo'
 
 // Itens protegidos (fixo) só aceitam ajuste com confirmação explícita —

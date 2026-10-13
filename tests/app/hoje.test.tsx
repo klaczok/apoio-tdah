@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react'
-import HojePage from '@/app/hoje/page'
+import HojePage from '@/app/(area)/hoje/page'
 import { getStateStore } from '@/server/persistence'
 import { estadoVazio } from '@/server/persistence/estado'
 import { gerarInstanciaDiaria } from '@/server/dia/gerar'
@@ -26,14 +26,8 @@ function renderizar(params: Record<string, string> = {}) {
 }
 
 describe('Área privada', () => {
-  it('oferece ação para encerrar a sessão', async () => {
-    await renderizar()
-
-    const sair = screen.getByRole('button', { name: /sair/i })
-    expect(sair.closest('form')).toHaveAttribute('action', '/api/auth/logout')
-    expect(sair.closest('form')).toHaveAttribute('method', 'post')
-  })
-
+  // A ação de sair da conta mora no shell da área autenticada — coberta
+  // em tests/app/shell.test.tsx.
   it('exibe a anotação persistida do dia', async () => {
     const store = await getStateStore(USUARIO_TESTE)
     const carregado = await store.load()

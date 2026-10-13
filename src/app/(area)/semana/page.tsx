@@ -14,7 +14,7 @@ import {
   horarioParaTexto,
   minutosParaTexto,
 } from '@/server/tempo'
-import { AjusteItem } from '../_components/ajuste-item'
+import { AjusteItem } from '@/app/_components/ajuste-item'
 
 export const dynamic = 'force-dynamic'
 

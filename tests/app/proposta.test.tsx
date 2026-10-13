@@ -1,6 +1,5 @@
 import { render, screen } from '@testing-library/react'
-import PropostaPage from '@/app/proposta/page'
-import HojePage from '@/app/hoje/page'
+import PropostaPage from '@/app/(area)/proposta/page'
 import { getStateStore } from '@/server/persistence'
 import { estadoVazio, type EstadoPrivado } from '@/server/persistence/estado'
 import {
@@ -89,14 +88,6 @@ describe('Proposta semanal', () => {
     expect(screen.queryByRole('button', { name: /confirmar proposta/i })).not.toBeInTheDocument()
   })
 
-  it('a tela de hoje linka para a proposta da semana', async () => {
-    await gravar(estadoVazio())
-
-    render(await HojePage({ searchParams: Promise.resolve({}) }))
-
-    expect(screen.getByRole('link', { name: /proposta da semana/i })).toHaveAttribute(
-      'href',
-      '/proposta'
-    )
-  })
+  // O acesso à proposta agora é a navegação persistente do shell —
+  // coberto em tests/app/shell.test.tsx.
 })

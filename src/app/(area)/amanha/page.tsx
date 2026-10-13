@@ -17,7 +17,7 @@ import { minutosPorCategoria } from '@/server/dia/semana'
 import { CATEGORIAS, ROTULOS_CATEGORIA, ROTULOS_DIA, type Categoria } from '@/server/rotina/modelo'
 import type { InstanciaDiaria, ItemDia, Tarefa } from '@/server/dia/modelo'
 import { avaliarAlertas, type Alerta } from '@/server/dia/alertas'
-import { AjusteItem } from '../_components/ajuste-item'
+import { AjusteItem } from '@/app/_components/ajuste-item'
 
 export const dynamic = 'force-dynamic'
 

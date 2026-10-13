@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
-import ConfigurarPage from '@/app/configurar/page'
-import EtapaPage from '@/app/configurar/[etapa]/page'
+import ConfigurarPage from '@/app/(area)/configurar/page'
+import EtapaPage from '@/app/(area)/configurar/[etapa]/page'
 import { getStateStore } from '@/server/persistence'
 import { estadoVazio } from '@/server/persistence/estado'
 import {

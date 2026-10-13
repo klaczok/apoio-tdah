@@ -1,47 +1,51 @@
+import { ShellPublico } from '@/app/_components/shell'
+import { Aviso } from '@/app/_components/ui'
+import ui from '@/app/_components/ui.module.css'
 import styles from './login.module.css'
 
 type Props = {
   searchParams: Promise<{ erro?: string }>
 }
 
+// Rota pública de autenticação: mesma identidade visual da área
+// privada, sem expor navegação ou dados da conta.
 export default async function LoginPage({ searchParams }: Props) {
   const { erro } = await searchParams
 
   return (
-    <main className={styles.container}>
-      <h1 className={styles.title}>Apoio à Rotina</h1>
-      <form className={styles.form} action="/api/auth/login" method="post">
-        {erro === 'credencial' && (
-          <p role="alert" className={styles.error}>
-            E-mail ou senha incorretos.
-          </p>
-        )}
-        <label className={styles.label} htmlFor="email">
-          E-mail
-        </label>
-        <input
-          className={styles.input}
-          id="email"
-          name="email"
-          type="email"
-          autoComplete="email"
-          required
-        />
-        <label className={styles.label} htmlFor="password">
-          Senha
-        </label>
-        <input
-          className={styles.input}
-          id="password"
-          name="password"
-          type="password"
-          autoComplete="current-password"
-          required
-        />
-        <button className={styles.submit} type="submit">
-          Entrar
-        </button>
-      </form>
-    </main>
+    <ShellPublico>
+      <main className={styles.container}>
+        <h1 className={styles.title}>Entrar na sua rotina</h1>
+        <p className={styles.lead}>Seu plano está guardado do jeito que você deixou.</p>
+        <form className={styles.form} action="/api/auth/login" method="post">
+          {erro === 'credencial' && <Aviso tipo="erro">E-mail ou senha incorretos.</Aviso>}
+          <label className={ui.campo} htmlFor="email">
+            E-mail
+            <input
+              className={ui.entrada}
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              required
+            />
+          </label>
+          <label className={ui.campo} htmlFor="password">
+            Senha
+            <input
+              className={ui.entrada}
+              id="password"
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              required
+            />
+          </label>
+          <button className={`${ui.botao} ${ui.botaoPrimario} ${styles.submit}`} type="submit">
+            Entrar
+          </button>
+        </form>
+      </main>
+    </ShellPublico>
   )
 }

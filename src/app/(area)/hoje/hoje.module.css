@@ -1,0 +1,49 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espaco-lg);
+  max-width: 46rem;
+}
+
+.nota {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espaco-xs);
+  width: 100%;
+  max-width: 28rem;
+}
+
+.label {
+  font-size: var(--texto-sm);
+  font-weight: 700;
+  color: var(--texto-secundario);
+}
+
+.textarea {
+  padding: var(--espaco-xs) var(--espaco-md);
+  font-size: var(--texto-base);
+  font-family: inherit;
+  color: var(--texto-primario);
+  background: var(--superficie-cartao);
+  border: 1px solid var(--borda-campo);
+  border-radius: var(--raio-md);
+  resize: vertical;
+}
+
+.alinhado {
+  align-self: flex-start;
+}
+
+.proximo {
+  align-self: flex-start;
+  color: var(--acao-primaria);
+  font-size: var(--texto-sm);
+  font-weight: 700;
+}
+
+.formInline {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--espaco-xs);
+  margin: 0;
+}

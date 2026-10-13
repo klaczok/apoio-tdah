@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react'
-import SemanaPage from '@/app/semana/page'
+import SemanaPage from '@/app/(area)/semana/page'
 import { getStateStore } from '@/server/persistence'
 import { estadoVazio } from '@/server/persistence/estado'
 import { gerarInstanciaDiaria } from '@/server/dia/gerar'
