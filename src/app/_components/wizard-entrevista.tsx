@@ -4,17 +4,23 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import ui from './ui.module.css'
 import styles from '../(area)/entrevista/entrevista.module.css'
-import { ETAPAS_ENTREVISTA, type RespostasEntrevista } from '@/server/entrevista/etapas'
+import { ETAPAS_ENTREVISTA, type RespostasEntrevista } from '@/entrevista/etapas'
 
 // Wizard das cinco etapas: as respostas vivem apenas na memória desta
 // página — sair, recarregar ou fechar descarta tudo, como prometido no
 // convite. "Voltar" preserva o que já foi respondido nesta sessão. Ao
 // concluir, um POST grava a sessão efêmera (cookie assinado) para a
-// geração da proposta; nada toca o EstadoPrivado.
-export function WizardEntrevista() {
+// geração da proposta; nada toca o EstadoPrivado. Quem vem da revisão
+// recebe as respostas já registradas — refazer uma etapa não exige
+// refazer as cinco.
+export function WizardEntrevista({
+  respostasIniciais,
+}: {
+  respostasIniciais?: RespostasEntrevista
+}) {
   const router = useRouter()
   const [indice, setIndice] = useState(0)
-  const [respostas, setRespostas] = useState<RespostasEntrevista>({})
+  const [respostas, setRespostas] = useState<RespostasEntrevista>(respostasIniciais ?? {})
   const [enviando, setEnviando] = useState(false)
   const [falha, setFalha] = useState<string | null>(null)
 
@@ -138,7 +144,7 @@ export function WizardEntrevista() {
               Continuar
             </button>
           )}
-          <a href="/hoje" className={styles.sair}>
+          <a href="/api/entrevista/sair" className={styles.sair}>
             Sair e perder o progresso
           </a>
         </div>

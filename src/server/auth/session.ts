@@ -1,9 +1,9 @@
-export type SessionConfig = {
-  sessionSecret: string
-  sessionTtlSeconds: number
+export type ConfigSessao = {
+  segredoSessao: string
+  ttlSessaoSegundos: number
 }
 
-type SessionPayload = {
+type PayloadSessao = {
   sub: string
   iat: number
   exp: number
@@ -17,81 +17,81 @@ export type IdentidadeAutenticada = {
 // para contas persistidas (ver docs/adr/0002).
 export const ID_USUARIO_LEGADO = 'usuario-unico'
 
-const encoder = new TextEncoder()
+const codificador = new TextEncoder()
 
-function base64UrlEncode(data: Uint8Array): string {
-  let binary = ''
-  for (const byte of data) binary += String.fromCharCode(byte)
-  return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '')
+function base64UrlCodificar(data: Uint8Array): string {
+  let binario = ''
+  for (const byte of data) binario += String.fromCharCode(byte)
+  return btoa(binario).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '')
 }
 
-function base64UrlDecode(value: string): Uint8Array | null {
+function base64UrlDecodificar(value: string): Uint8Array | null {
   const base64 = value.replaceAll('-', '+').replaceAll('_', '/')
   const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4)
   try {
-    const binary = atob(padded)
-    const bytes = new Uint8Array(binary.length)
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+    const binario = atob(padded)
+    const bytes = new Uint8Array(binario.length)
+    for (let i = 0; i < binario.length; i++) bytes[i] = binario.charCodeAt(i)
     return bytes
   } catch {
     return null
   }
 }
 
-async function hmacKey(secret: string): Promise<CryptoKey> {
+async function chaveHmac(segredo: string): Promise<CryptoKey> {
   return crypto.subtle.importKey(
     'raw',
-    encoder.encode(secret),
+    codificador.encode(segredo),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
     ['sign', 'verify']
   )
 }
 
-export async function createSessionToken(
-  config: SessionConfig,
+export async function criarTokenSessao(
+  config: ConfigSessao,
   now: Date,
   usuarioId: string
 ): Promise<string> {
   const iat = Math.floor(now.getTime() / 1000)
-  const payload: SessionPayload = {
+  const payload: PayloadSessao = {
     sub: usuarioId,
     iat,
-    exp: iat + config.sessionTtlSeconds,
+    exp: iat + config.ttlSessaoSegundos,
   }
-  const payloadEncoded = base64UrlEncode(encoder.encode(JSON.stringify(payload)))
-  const key = await hmacKey(config.sessionSecret)
-  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(payloadEncoded))
-  return `${payloadEncoded}.${base64UrlEncode(new Uint8Array(signature))}`
+  const payloadCodificado = base64UrlCodificar(codificador.encode(JSON.stringify(payload)))
+  const key = await chaveHmac(config.segredoSessao)
+  const assinatura = await crypto.subtle.sign('HMAC', key, codificador.encode(payloadCodificado))
+  return `${payloadCodificado}.${base64UrlCodificar(new Uint8Array(assinatura))}`
 }
 
-export async function verifySessionToken(
-  sessionSecret: string,
+export async function verificarTokenSessao(
+  segredoSessao: string,
   token: string,
   now: Date
 ): Promise<IdentidadeAutenticada | null> {
-  const parts = token.split('.')
-  if (parts.length !== 2) return null
-  const [payloadEncoded, signatureEncoded] = parts
+  const partes = token.split('.')
+  if (partes.length !== 2) return null
+  const [payloadCodificado, assinaturaCodificada] = partes
 
-  const signature = base64UrlDecode(signatureEncoded)
-  if (!signature) return null
+  const assinatura = base64UrlDecodificar(assinaturaCodificada)
+  if (!assinatura) return null
 
-  const key = await hmacKey(sessionSecret)
+  const key = await chaveHmac(segredoSessao)
   const valid = await crypto.subtle.verify(
     'HMAC',
     key,
-    signature.buffer as ArrayBuffer,
-    encoder.encode(payloadEncoded)
+    assinatura.buffer as ArrayBuffer,
+    codificador.encode(payloadCodificado)
   )
   if (!valid) return null
 
-  const payloadBytes = base64UrlDecode(payloadEncoded)
-  if (!payloadBytes) return null
+  const bytesPayload = base64UrlDecodificar(payloadCodificado)
+  if (!bytesPayload) return null
 
-  let payload: SessionPayload
+  let payload: PayloadSessao
   try {
-    payload = JSON.parse(new TextDecoder().decode(payloadBytes))
+    payload = JSON.parse(new TextDecoder().decode(bytesPayload))
   } catch {
     return null
   }

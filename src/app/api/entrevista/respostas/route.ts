@@ -1,7 +1,11 @@
-import { isSecureRequest } from '@/server/auth/cookies'
+import { requisicaoSegura } from '@/server/auth/cookies'
 import { identidadeAutenticada } from '@/server/auth/contexto'
-import { serializeConsentCookie, sessaoDaEntrevista, valorSessao } from '@/server/entrevista/sessao'
-import { normalizarRespostas } from '@/server/entrevista/etapas'
+import {
+  serializarCookieEntrevista,
+  sessaoDaEntrevista,
+  valorSessao,
+} from '@/server/entrevista/sessao'
+import { normalizarRespostas } from '@/entrevista/etapas'
 
 // Recebe as respostas das cinco etapas no fim da entrevista e as guarda
 // na sessão efêmera (cookie assinado, sem Max-Age). Nada é gravado no
@@ -30,7 +34,7 @@ export async function POST(request: Request) {
   const resposta = Response.json({ ok: true })
   resposta.headers.append(
     'Set-Cookie',
-    serializeConsentCookie(valor, { secure: isSecureRequest(request) })
+    serializarCookieEntrevista(valor, { seguro: requisicaoSegura(request) })
   )
   return resposta
 }

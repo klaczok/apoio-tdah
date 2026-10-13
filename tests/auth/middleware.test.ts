@@ -2,13 +2,13 @@
 
 import { NextRequest } from 'next/server'
 import { middleware } from '@/middleware'
-import { createSessionToken, ID_USUARIO_LEGADO } from '@/server/auth/session'
+import { criarTokenSessao, ID_USUARIO_LEGADO } from '@/server/auth/session'
 
 const SESSION_SECRET = 'segredo-de-teste-com-entropia-suficiente'
 
 async function tokenValido() {
-  return createSessionToken(
-    { sessionSecret: SESSION_SECRET, sessionTtlSeconds: 7 * 24 * 60 * 60 },
+  return criarTokenSessao(
+    { segredoSessao: SESSION_SECRET, ttlSessaoSegundos: 7 * 24 * 60 * 60 },
     new Date(),
     ID_USUARIO_LEGADO
   )

@@ -2,7 +2,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { axe, toHaveNoViolations } from 'jest-axe'
 import { WizardEntrevista } from '@/app/_components/wizard-entrevista'
 import { POST as postRespostas } from '@/app/api/entrevista/respostas/route'
-import { ETAPAS_ENTREVISTA, normalizarRespostas } from '@/server/entrevista/etapas'
+import { ETAPAS_ENTREVISTA, normalizarRespostas } from '@/entrevista/etapas'
 import { lerSessao, valorConsentimento } from '@/server/entrevista/sessao'
 import { autenticarComo, consentirEntrevista } from '../helpers/sessao'
 
@@ -57,9 +57,24 @@ describe('wizard das cinco etapas', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Etapa 2 de 5')
     expect(screen.getByRole('link', { name: /sair e perder o progresso/i })).toHaveAttribute(
       'href',
-      '/hoje'
+      '/api/entrevista/sair'
     )
     expect(screen.getByText(/recarregar ou fechar a página.*é perdido/i)).toBeInTheDocument()
+  })
+
+  it('refazer uma etapa preserva as respostas já registradas na sessão', () => {
+    render(
+      <WizardEntrevista
+        respostasIniciais={{
+          objetivo: { selecionadas: ['estudos'], texto: 'faculdade' },
+          'horarios-fixos': { selecionadas: ['trabalho'], texto: '' },
+        }}
+      />
+    )
+    // Etapa 1 já respondida — basta navegar até a etapa a refazer.
+    expect(screen.getByRole('radio', { name: /estudos/i })).toBeChecked()
+    fireEvent.click(screen.getByRole('button', { name: /continuar/i }))
+    expect(screen.getByRole('checkbox', { name: /trabalho/i })).toBeChecked()
   })
 
   it('texto aberto opcional pode ser escrito em qualquer etapa', () => {

@@ -1,16 +1,16 @@
 import { NextResponse } from 'next/server'
 import { cadastrarUsuario } from '@/server/auth/cadastro'
-import { loadSessionConfig } from '@/server/auth/config'
-import { isSecureRequest, serializeSessionCookie } from '@/server/auth/cookies'
-import { createSessionToken, type SessionConfig } from '@/server/auth/session'
+import { carregarConfigSessao } from '@/server/auth/config'
+import { requisicaoSegura, serializarCookieSessao } from '@/server/auth/cookies'
+import { criarTokenSessao, type ConfigSessao } from '@/server/auth/session'
 import { normalizarEmail } from '@/server/identidade/usuarios'
 
 // A falha redireciona ao cadastro com código estável e o e-mail
 // preservado (dado não sensível); a senha nunca entra na URL.
 export async function POST(request: Request) {
-  let session: SessionConfig
+  let session: ConfigSessao
   try {
-    session = loadSessionConfig(process.env)
+    session = carregarConfigSessao(process.env)
   } catch {
     return NextResponse.json({ erro: 'indisponivel' }, { status: 503 })
   }
@@ -40,13 +40,13 @@ export async function POST(request: Request) {
     })
   }
 
-  const token = await createSessionToken(session, new Date(), resultado.usuarioId)
+  const token = await criarTokenSessao(session, new Date(), resultado.usuarioId)
   const response = new Response(null, { status: 303, headers: { location: '/hoje' } })
   response.headers.append(
     'Set-Cookie',
-    serializeSessionCookie(token, {
-      secure: isSecureRequest(request),
-      maxAgeSeconds: session.sessionTtlSeconds,
+    serializarCookieSessao(token, {
+      seguro: requisicaoSegura(request),
+      maxAgeSegundos: session.ttlSessaoSegundos,
     })
   )
   return response

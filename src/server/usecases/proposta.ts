@@ -14,9 +14,11 @@ export type PropostaAtual = {
 }
 
 // Campos omitidos preservam o valor atual; null remove explicitamente.
+// rotina não aceita null — só é substituída quando um valor vem junto.
 export type PropostaNova = {
   propostaSemanal?: PropostaSemanal | null
   semanaAtiva?: PropostaSemanal | null
+  rotina?: RotinaRecorrente
 }
 
 export async function atualizarProposta(
@@ -35,7 +37,11 @@ export async function atualizarProposta(
     return valor === null ? null : validarProposta(valor)
   }
 
-  let proximo: { propostaSemanal: PropostaSemanal | null; semanaAtiva: PropostaSemanal | null }
+  let proximo: {
+    propostaSemanal: PropostaSemanal | null
+    semanaAtiva: PropostaSemanal | null
+    rotina: RotinaRecorrente
+  }
   try {
     const resultado = aplicar({
       rotina: atual.value.dados.rotina,
@@ -45,6 +51,7 @@ export async function atualizarProposta(
     proximo = {
       propostaSemanal: resolver('propostaSemanal', resultado),
       semanaAtiva: resolver('semanaAtiva', resultado),
+      rotina: resultado.rotina ?? atual.value.dados.rotina,
     }
   } catch (error) {
     if (error instanceof ConfirmacaoFixoError) {

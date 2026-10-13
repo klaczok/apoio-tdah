@@ -1,6 +1,6 @@
-import { isSecureRequest } from '@/server/auth/cookies'
+import { requisicaoSegura } from '@/server/auth/cookies'
 import { identidadeAutenticada } from '@/server/auth/contexto'
-import { serializeConsentCookie, valorConsentimento } from '@/server/entrevista/sessao'
+import { serializarCookieEntrevista, valorConsentimento } from '@/server/entrevista/sessao'
 
 // Registra o consentimento geral na sessão efêmera da entrevista. Nada
 // é gravado no EstadoPrivado: apenas um cookie httpOnly assinado, sem
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
   })
   response.headers.append(
     'Set-Cookie',
-    serializeConsentCookie(valor, { secure: isSecureRequest(request) })
+    serializarCookieEntrevista(valor, { seguro: requisicaoSegura(request) })
   )
   return response
 }

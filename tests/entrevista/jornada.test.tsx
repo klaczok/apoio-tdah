@@ -11,8 +11,10 @@ import { POST as postRespostas } from '@/app/api/entrevista/respostas/route'
 import { POST as postDocumento } from '@/app/api/entrevista/documento/route'
 import { POST as postGerar } from '@/app/api/entrevista/gerar/route'
 import { POST as postConfirmar } from '@/app/api/entrevista/confirmar/route'
+import { GET as getSair } from '@/app/api/entrevista/sair/route'
 import { ENTREVISTA_COOKIE } from '@/server/entrevista/cookie'
 import { obterDocumento, descartarDocumento } from '@/server/entrevista/documento'
+import { obterRotinaInterpretada, descartarRotinaInterpretada } from '@/server/entrevista/material'
 import { getStateStore } from '@/server/persistence'
 import { estadoVazio } from '@/server/persistence/estado'
 import type { EstadoPrivado } from '@/server/persistence/estado'
@@ -90,6 +92,7 @@ async function preparar() {
   delete globalState.__respostaIA
   delete globalState.__entradaIA
   descartarDocumento(USUARIO_TESTE)
+  descartarRotinaInterpretada(USUARIO_TESTE)
   await autenticarComo()
   const store = await getStateStore(USUARIO_TESTE)
   const lido = await store.load()
@@ -200,6 +203,9 @@ describe('jornada completa da entrevista', () => {
     dados = await estado()
     expect(dados.semanaAtiva).not.toBeNull()
     expect(dados.propostaSemanal).toBeNull()
+    // A confirmação promove junto a rotina interpretada — antes disso
+    // ela era só material transitório.
+    expect(dados.rotina.sono?.dormir).toBe('23:00')
     const serializado = JSON.stringify(dados)
     expect(serializado).not.toContain('faculdade')
     expect(serializado).not.toContain('apoio_entrevista')
@@ -244,18 +250,33 @@ describe('jornada completa da entrevista', () => {
     expect(JSON.stringify(await estado())).not.toContain('faculdade')
   })
 
-  it('abandono perde o progresso — material transitório nunca entra no EstadoPrivado', async () => {
+  it('sair descarta sessão, documento e rotina interpretada — nada vaza para a próxima tentativa', async () => {
     await consentir()
     await responder()
     await postDocumento(requisicaoForm({ consentimentoDocumento: 'aceito', arquivo: arquivoTxt() }))
+    globalState.__respostaIA = {
+      ok: true,
+      interpretacao: { sono: { dormir: '23:00', acordar: '07:00' } },
+    }
+    await postGerar()
+    expect(obterRotinaInterpretada(USUARIO_TESTE)).not.toBeNull()
 
-    // Sair no meio = nada a persistir: EstadoPrivado continua vazio de
-    // respostas, documento, prompt e qualquer material de IA.
+    const saida = await getSair(requisicaoVazia('http://localhost/api/entrevista/sair'))
+    expect(saida.headers.get('location')).toBe('/hoje')
+    // Cookie efêmero expirado e material transitório descartado.
+    const cookie = saida.headers.get('set-cookie') ?? ''
+    expect(cookie).toContain(`${ENTREVISTA_COOKIE}=`)
+    expect(cookie).toContain('Max-Age=0')
+    expect(obterDocumento(USUARIO_TESTE)).toBeNull()
+    expect(obterRotinaInterpretada(USUARIO_TESTE)).toBeNull()
+
+    // Nada persistiu: EstadoPrivado continua vazio de respostas,
+    // documento e qualquer material de IA.
     const dados = await estado()
     const serializado = JSON.stringify(dados)
     expect(serializado).not.toContain('faculdade')
     expect(serializado).not.toContain('trabalho seg a sex')
-    expect(dados.propostaSemanal).toBeNull()
+    expect(dados.propostaSemanal).not.toBeNull() // o rascunho gerado permanece — é dado de produto
     expect(dados.semanaAtiva).toBeNull()
   })
 

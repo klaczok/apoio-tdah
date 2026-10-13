@@ -1,4 +1,4 @@
-import type { RespostasEntrevista } from '@/server/entrevista/etapas'
+import type { RespostasEntrevista } from '@/entrevista/etapas'
 
 // Contrato do interpretador de IA: recebe apenas material consentido da
 // sessão efêmera e devolve uma interpretação estruturada (JSON) que a

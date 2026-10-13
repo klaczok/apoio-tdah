@@ -7,6 +7,7 @@ import { estadoVazio } from '@/server/persistence/estado'
 import { ehDiaSemana } from '@/server/rotina/modelo'
 import { valorSessao } from '@/server/entrevista/sessao'
 import { guardarDocumento, obterDocumento, descartarDocumento } from '@/server/entrevista/documento'
+import { obterRotinaInterpretada, descartarRotinaInterpretada } from '@/server/entrevista/material'
 import type { ResultadoInterpretacao } from '@/server/ia/interpretador'
 import { autenticarComo, consentirEntrevista, USUARIO_TESTE } from '../helpers/sessao'
 
@@ -47,6 +48,7 @@ beforeEach(() => {
   delete globalState.__entradaIA
   delete (globalThis as { __entrevistaTeste?: string }).__entrevistaTeste
   descartarDocumento(USUARIO_TESTE)
+  descartarRotinaInterpretada(USUARIO_TESTE)
 })
 
 describe('normalizarInterpretacao', () => {
@@ -114,12 +116,33 @@ describe('POST /api/entrevista/gerar', () => {
     expect(resposta.headers.get('location')).toBe('/entrevista/revisao?gerada=1')
 
     const dados = await estado()
-    expect(dados.rotina.trabalho?.horasPadrao).toBe(6)
     expect(dados.propostaSemanal).not.toBeNull()
     expect(dados.semanaAtiva).toBeNull()
+    // A rotina interpretada fica em material transitório — a rotina do
+    // EstadoPrivado só é tocada pela confirmação.
+    expect(obterRotinaInterpretada(USUARIO_TESTE)?.trabalho?.horasPadrao).toBe(6)
+    expect(dados.rotina.trabalho).toBeNull()
     // Material transitório nunca entra no EstadoPrivado.
     expect(JSON.stringify(dados)).not.toContain('faculdade')
     expect('respostas' in dados).toBe(false)
+  })
+
+  it('gerar não sobrescreve uma rotina montada manualmente — só a confirmação promove', async () => {
+    await sessaoComRespostas()
+    const manual = normalizarInterpretacao({
+      sono: { dormir: '22:00', acordar: '06:00' },
+    })!
+    const store = await getStateStore(USUARIO_TESTE)
+    const lido = await store.load()
+    if (!lido.ok) throw new Error('store indisponível')
+    await store.save({ ...estadoVazio(), rotina: manual }, lido.value.version)
+
+    globalState.__respostaIA = respostaIA({ sono: { dormir: '23:30', acordar: '07:30' } })
+    expect((await postGerar()).headers.get('location')).toBe('/entrevista/revisao?gerada=1')
+
+    // A rotina manual permanece intacta; a interpretada espera o aceite.
+    expect((await estado()).rotina.sono?.dormir).toBe('22:00')
+    expect(obterRotinaInterpretada(USUARIO_TESTE)?.sono?.dormir).toBe('23:30')
   })
 
   it('resposta inválida ou indisponível devolve erro com caminho de retentativa', async () => {
@@ -143,7 +166,6 @@ describe('POST /api/entrevista/gerar', () => {
       formato: 'txt',
       tamanho: 30,
       consentidoEm: new Date().toISOString(),
-      bytes: new Uint8Array(),
       texto: 'trabalho seg a sex das 9h às 15h',
     })
     globalState.__respostaIA = respostaIA({ sono: { dormir: '23:30', acordar: '07:30' } })
@@ -154,7 +176,7 @@ describe('POST /api/entrevista/gerar', () => {
     expect(globalState.__entradaIA?.respostas).toEqual({
       objetivo: { selecionadas: ['estudos'], texto: 'faculdade' },
     })
-    expect((await estado()).rotina.sono?.acordar).toBe('07:30')
+    expect(obterRotinaInterpretada(USUARIO_TESTE)?.sono?.acordar).toBe('07:30')
     // Documento transitório descartado após a geração.
     expect(obterDocumento(USUARIO_TESTE)).toBeNull()
   })

@@ -3,7 +3,7 @@
 import { scryptSync, randomBytes } from 'node:crypto'
 import { POST } from '@/app/api/auth/login/route'
 import { hashSenha } from '@/server/auth/senha'
-import { verifySessionToken } from '@/server/auth/session'
+import { verificarTokenSessao } from '@/server/auth/session'
 import { getUserStore } from '@/server/identidade'
 import { MemoryUserStore, type CelulaUsuarios } from '@/server/identidade/memory'
 
@@ -146,7 +146,7 @@ describe('POST /api/auth/login — usuário persistido', () => {
     const cookie = resposta.headers.getSetCookie().join(';')
     const token = /apoio_sessao=([^;]+)/.exec(cookie)?.[1]
     expect(token).toBeTruthy()
-    await expect(verifySessionToken(SESSION_SECRET, token!, new Date())).resolves.toEqual({
+    await expect(verificarTokenSessao(SESSION_SECRET, token!, new Date())).resolves.toEqual({
       usuarioId: criado.value.id,
     })
   })

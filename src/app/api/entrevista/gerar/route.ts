@@ -1,19 +1,19 @@
 import { identidadeAutenticada } from '@/server/auth/contexto'
 import { sessaoDaEntrevista } from '@/server/entrevista/sessao'
 import { obterDocumento, descartarDocumento } from '@/server/entrevista/documento'
+import { guardarRotinaInterpretada } from '@/server/entrevista/material'
 import { interpretarEntrevista } from '@/server/entrevista/interpretar'
 import { getInterpretador } from '@/server/ia'
 import { getStateStore } from '@/server/persistence'
 import { gerarPropostaSemanal } from '@/server/proposta/gerar'
-
-function redirecionar(destino: string) {
-  return new Response(null, { status: 303, headers: { location: destino } })
-}
+import { redirecionar } from '@/server/http'
 
 // Geração da proposta a partir da entrevista: interpreta o material
 // consentido via adaptador de servidor, normaliza para a
 // RotinaRecorrente e alimenta o gerador determinístico — a proposta fica
 // em rascunho para revisão, nunca promovida diretamente a SemanaAtiva.
+// A rotina interpretada fica em material transitório até a confirmação:
+// gerar não sobrescreve uma rotina montada manualmente.
 export async function POST() {
   const identidade = await identidadeAutenticada()
   if (!identidade) return redirecionar('/login')
@@ -33,12 +33,13 @@ export async function POST() {
   if (!lido.ok) return redirecionar('/entrevista/revisao?erro=indisponivel')
   const proposta = gerarPropostaSemanal(resultado.rotina)
   const salvo = await store.save(
-    { ...lido.value.dados, rotina: resultado.rotina, propostaSemanal: proposta },
+    { ...lido.value.dados, propostaSemanal: proposta },
     lido.value.version
   )
   if (!salvo.ok) return redirecionar('/entrevista/revisao?erro=indisponivel')
-  // Contexto enviado e proposta gerada: o documento transitório não é
-  // mais necessário — descarte imediato (nunca chega ao EstadoPrivado).
+  // A rotina interpretada aguarda a confirmação em memória transitória;
+  // o documento já cumpriu seu papel — descarte imediato.
+  guardarRotinaInterpretada(identidade.usuarioId, resultado.rotina)
   descartarDocumento(identidade.usuarioId)
   return redirecionar('/entrevista/revisao?gerada=1')
 }

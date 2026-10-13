@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers'
 import { ENTREVISTA_COOKIE } from './cookie'
-import type { RespostasEntrevista } from './etapas'
+import type { RespostasEntrevista } from '@/entrevista/etapas'
 
 export { ENTREVISTA_COOKIE }
 
@@ -14,17 +14,17 @@ export type SessaoEntrevista = {
   respostas?: RespostasEntrevista
 }
 
-const encoder = new TextEncoder()
+const codificador = new TextEncoder()
 
 async function assinar(segredo: string, valor: string): Promise<string> {
   const chave = await crypto.subtle.importKey(
     'raw',
-    encoder.encode(segredo),
+    codificador.encode(segredo),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
     ['sign']
   )
-  const assinatura = await crypto.subtle.sign('HMAC', chave, encoder.encode(valor))
+  const assinatura = await crypto.subtle.sign('HMAC', chave, codificador.encode(valor))
   let binario = ''
   for (const byte of new Uint8Array(assinatura)) binario += String.fromCharCode(byte)
   return btoa(binario).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '')
@@ -61,17 +61,17 @@ export async function consentimentoValido(segredo: string, valor: string): Promi
   return (await lerSessao(segredo, valor)) !== null
 }
 
-export function serializeConsentCookie(valor: string, options: { secure: boolean }): string {
-  const parts = [`${ENTREVISTA_COOKIE}=${valor}`, 'Path=/', 'HttpOnly', 'SameSite=lax']
-  if (options.secure) parts.push('Secure')
-  return parts.join('; ')
+export function serializarCookieEntrevista(valor: string, opcoes: { seguro: boolean }): string {
+  const partes = [`${ENTREVISTA_COOKIE}=${valor}`, 'Path=/', 'HttpOnly', 'SameSite=lax']
+  if (opcoes.seguro) partes.push('Secure')
+  return partes.join('; ')
 }
 
 // Encerra a sessão efêmera: cookie imediatamente expirado.
-export function serializeClearedEntrevistaCookie(options: { secure: boolean }): string {
-  const parts = [`${ENTREVISTA_COOKIE}=`, 'Path=/', 'HttpOnly', 'SameSite=lax', 'Max-Age=0']
-  if (options.secure) parts.push('Secure')
-  return parts.join('; ')
+export function serializarCookieEntrevistaLimpo(opcoes: { seguro: boolean }): string {
+  const partes = [`${ENTREVISTA_COOKIE}=`, 'Path=/', 'HttpOnly', 'SameSite=lax', 'Max-Age=0']
+  if (opcoes.seguro) partes.push('Secure')
+  return partes.join('; ')
 }
 
 // Lê a sessão de entrevista no contexto de rota/página do servidor.
