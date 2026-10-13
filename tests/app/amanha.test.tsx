@@ -152,7 +152,7 @@ describe('Amanhã', () => {
 
     await renderizar()
 
-    expect(screen.getByText(/trabalho.*8h/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/trabalho.*8h/i).length).toBeGreaterThan(0)
   })
 
   it('mostra compromissos fixos em seção própria antes da linha do tempo', async () => {
@@ -175,6 +175,30 @@ describe('Amanhã', () => {
       .getByText('Compromissos fixos')
       .compareDocumentPosition(screen.getByRole('list', { name: /linha do tempo/i }))
     expect(posFixos & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('usa o cabeçalho e a linha do tempo compartilhados com o foco diário', async () => {
+    await comDiaPlanejado()
+
+    await renderizar()
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Amanhã' })).toBeInTheDocument()
+    // Cabeçalho carrega o contexto da data de amanhã.
+    expect(screen.getAllByText(/·/).length).toBeGreaterThan(0)
+    const linha = screen.getByRole('list', { name: /linha do tempo/i })
+    // Sinais e rótulos textuais redundantes para tipos de item.
+    expect(linha.textContent).toMatch(/Fixo|Flexível|Tarefa|Livre|Marco/)
+  })
+
+  it('conteúdo secundário fica em divulgação progressiva sem esconder nada obrigatório', async () => {
+    await comDiaPlanejado()
+
+    const { container } = await renderizar()
+
+    const resumos = [...container.querySelectorAll('details summary')].map((s) => s.textContent)
+    expect(resumos.some((t) => /nota e carga/i.test(t ?? ''))).toBe(true)
+    // Confirmar o dia continua fora de qualquer divulgação.
+    expect(screen.getByRole('button', { name: /confirmar o dia/i })).toBeInTheDocument()
   })
 
   it('ajustar item fixo pede confirmação explícita na interface', async () => {

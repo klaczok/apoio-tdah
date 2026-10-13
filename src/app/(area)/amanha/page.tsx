@@ -1,5 +1,7 @@
 import Link from 'next/link'
 import styles from '../configurar/configurar.module.css'
+import foco from '@/app/_components/foco.module.css'
+import { Aviso, CabecalhoPagina, EstadoVazio } from '@/app/_components/ui'
 import { redirect } from 'next/navigation'
 import { storeDoUsuario } from '@/server/auth/contexto'
 import { MENSAGENS_ERRO } from '@/server/persistence/mensagens'
@@ -89,15 +91,13 @@ function PrioridadesDoDia({ instancia }: { instancia: InstanciaDiaria }) {
     .map((id) => resolverItem(instancia, id))
     .filter((i): i is ItemDia | Tarefa => i !== undefined)
   return (
-    <section className={styles.form} aria-label="Prioridades do dia">
-      <h2 className={styles.subtitulo}>Prioridades do dia</h2>
-      <ol className={styles.lista}>
+    <section className={foco.prioridades} aria-label="Prioridades do dia">
+      <h2>Prioridades do dia</h2>
+      <ol className={foco.lista}>
         {itens.map((item) => (
-          <li key={item.id} className={styles.item}>
-            <span className={styles.itemTexto}>
-              {horarioParaTexto(item.inicio, item.fim)} · {item.titulo} ·{' '}
-              {ROTULOS_CATEGORIA[item.categoria]}
-            </span>
+          <li key={item.id}>
+            {horarioParaTexto(item.inicio, item.fim)} · {item.titulo} ·{' '}
+            {ROTULOS_CATEGORIA[item.categoria]}
           </li>
         ))}
       </ol>
@@ -281,40 +281,73 @@ function LinhaDoTempo({ instancia, editavel }: { instancia: InstanciaDiaria; edi
 
   return (
     <>
-      <ol className={styles.lista} aria-label="Linha do tempo">
+      <ol className={foco.linha} aria-label="Linha do tempo">
         {eventos.map((e, idx) =>
           e.tipo === 'livre' ? (
-            <li key={`livre-${idx}`} className={styles.item}>
-              <span className={styles.itemTexto}>
-                Livre {minutosParaHora(e.inicio)}–{minutosParaHora(e.fim)} · tempo respirável
+            <li key={`livre-${idx}`} className={`${foco.linhaItem} ${foco.itemLivre}`}>
+              <time className={foco.linhaHora}>{minutosParaHora(e.inicio)}</time>
+              <i className={foco.linhaSinal} aria-hidden="true">
+                ≈
+              </i>
+              <span className={foco.linhaTitulo}>
+                Espaço livre
+                <small>
+                  {minutosParaHora(e.inicio)}–{minutosParaHora(e.fim)} · tempo respirável
+                </small>
               </span>
+              <span className={foco.linhaEstado}>Livre</span>
             </li>
           ) : e.tipo === 'marco' ? (
-            <li key={`marco-${idx}`} className={styles.item}>
-              <span className={styles.itemTexto}>{e.texto}</span>
+            <li key={`marco-${idx}`} className={`${foco.linhaItem} ${foco.itemMargem}`}>
+              <time className={foco.linhaHora}>{minutosParaHora(e.minutos)}</time>
+              <i className={foco.linhaSinal} aria-hidden="true">
+                ◦
+              </i>
+              <span className={foco.linhaTitulo}>{e.texto}</span>
+              <span className={foco.linhaEstado}>Marco</span>
             </li>
           ) : (
-            <li key={e.item.id} className={styles.item}>
-              <span className={styles.itemTexto}>
-                {horarioParaTexto(e.item.inicio, e.item.fim)} · {e.item.titulo} ·{' '}
-                {ROTULOS_CATEGORIA[e.item.categoria]} ·{' '}
+            <li
+              key={e.item.id}
+              className={`${foco.linhaItem} ${e.item.plano !== null && 'origem' in e.item.plano && e.item.plano.origem === 'pausa' ? foco.itemMargem : ''}`}
+            >
+              <time className={foco.linhaHora}>{e.item.inicio}</time>
+              <i className={foco.linhaSinal} aria-hidden="true">
+                {e.item.plano === null ? '□' : e.item.protecao === 'fixo' ? '◈' : '◇'}
+              </i>
+              <span className={foco.linhaTitulo}>
+                {e.item.titulo}
+                <small>
+                  {horarioParaTexto(e.item.inicio, e.item.fim)} ·{' '}
+                  {ROTULOS_CATEGORIA[e.item.categoria]} · {e.item.explicacao}
+                  {instancia.prioridades.includes(e.item.id) && (
+                    <>
+                      {' '}
+                      · <span className={foco.prioridade}>prioridade</span>
+                    </>
+                  )}
+                </small>
+              </span>
+              <span className={foco.linhaEstado}>
                 {e.item.plano === null
                   ? 'Tarefa'
                   : e.item.protecao === 'fixo'
                     ? 'Fixo'
                     : 'Flexível'}
-                {instancia.prioridades.includes(e.item.id) && ' · Prioridade'}
               </span>
-              <p className={styles.dica}>{e.item.explicacao}</p>
-              {editavel && e.item.plano !== null && (
-                <AjusteItem item={e.item.plano} data={instancia.data} />
-              )}
-              {editavel && (
-                <AcaoPrioridade
-                  itemId={e.item.id}
-                  data={instancia.data}
-                  ehPrioridade={instancia.prioridades.includes(e.item.id)}
-                />
+              {(editavel || e.item.explicacao) && (
+                <span className={foco.linhaAcoes}>
+                  {editavel && e.item.plano !== null && (
+                    <AjusteItem item={e.item.plano} data={instancia.data} />
+                  )}
+                  {editavel && (
+                    <AcaoPrioridade
+                      itemId={e.item.id}
+                      data={instancia.data}
+                      ehPrioridade={instancia.prioridades.includes(e.item.id)}
+                    />
+                  )}
+                </span>
               )}
             </li>
           )
@@ -544,44 +577,37 @@ export default async function AmanhaPage({ searchParams }: Props) {
 
   return (
     <main className={styles.container}>
-      <h1 className={styles.title}>Amanhã</h1>
-      <p className={styles.intro}>
-        {dataCivilParaTexto(amanha)} · {ROTULOS_DIA[diaSemanaDe(amanha)]}
-      </p>
+      <CabecalhoPagina
+        eyebrow={`${ROTULOS_DIA[diaSemanaDe(amanha)]} · ${dataCivilParaTexto(amanha)}`}
+        titulo="Amanhã"
+        subtitulo="Planeje a linha do tempo — nada aqui altera a rotina."
+      />
 
       {params.planejado === '1' && (
-        <p role="status" className={styles.feedback}>
+        <Aviso tipo="sucesso">
           Amanhã planejado a partir da semana confirmada — ajuste à vontade, nada muda na rotina.
-        </p>
+        </Aviso>
       )}
-      {params.confirmado === '1' && (
-        <p role="status" className={styles.feedback}>
-          Dia confirmado.
-        </p>
-      )}
-      {params.salvo === '1' && (
-        <p role="status" className={styles.feedback}>
-          Ajuste salvo.
-        </p>
-      )}
+      {params.confirmado === '1' && <Aviso tipo="sucesso">Dia confirmado.</Aviso>}
+      {params.salvo === '1' && <Aviso tipo="sucesso">Ajuste salvo.</Aviso>}
       {(mensagemErro || erroCarga) && (
-        <p role="alert" className={styles.erro}>
+        <Aviso tipo="erro">
           {mensagemErro ?? 'Não foi possível carregar o planejamento agora. Tente recarregar.'}
-        </p>
+        </Aviso>
       )}
 
       {!instancia && !semanaAtiva && !erroCarga && (
-        <>
-          <p className={styles.dica}>O dia é planejado a partir da proposta semanal confirmada.</p>
+        <EstadoVazio titulo="Amanhã ainda não tem planejamento">
+          <p>O dia é planejado a partir da proposta semanal confirmada.</p>
           <Link className={styles.acao} href="/proposta">
             Revisar a proposta da semana
           </Link>
-        </>
+        </EstadoVazio>
       )}
 
       {!instancia && semanaAtiva && !erroCarga && (
-        <>
-          <p className={styles.dica}>
+        <EstadoVazio titulo="Pronto para planejar amanhã">
+          <p>
             Gera a linha do tempo de amanhã a partir da semana confirmada. Você pode mover e
             redimensionar os blocos flexíveis sem alterar a rotina.
           </p>
@@ -591,15 +617,13 @@ export default async function AmanhaPage({ searchParams }: Props) {
               Planejar amanhã
             </button>
           </form>
-        </>
+        </EstadoVazio>
       )}
 
       {instancia && (
         <>
           {instancia.confirmadaEm && (
-            <p role="status" className={styles.feedback}>
-              Dia confirmado em {dataHoraParaTexto(instancia.confirmadaEm)}.
-            </p>
+            <Aviso tipo="info">Dia confirmado em {dataHoraParaTexto(instancia.confirmadaEm)}.</Aviso>
           )}
           <PrioridadesDoDia instancia={instancia} />
           {params.substituir && editavel && (
@@ -608,8 +632,11 @@ export default async function AmanhaPage({ searchParams }: Props) {
           <FixosDoDia instancia={instancia} />
           <LinhaDoTempo instancia={instancia} editavel={editavel} />
           <TarefasDoDia instancia={instancia} editavel={editavel} />
-          <NotaDoDia instancia={instancia} editavel={editavel} />
-          <CargaPorArea instancia={instancia} />
+          <details className={styles.edicao}>
+            <summary className={styles.secundaria}>Nota e carga do dia</summary>
+            <NotaDoDia instancia={instancia} editavel={editavel} />
+            <CargaPorArea instancia={instancia} />
+          </details>
           <AlertasDoDia alertas={alertas} />
           {editavel && (
             <form action="/api/dia" method="post" className={styles.form}>

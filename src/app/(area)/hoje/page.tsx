@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import styles from './hoje.module.css'
+import foco from '@/app/_components/foco.module.css'
 import ui from '@/app/_components/ui.module.css'
 import { Aviso, CabecalhoPagina, EstadoVazio } from '@/app/_components/ui'
 import { storeDoUsuario } from '@/server/auth/contexto'
@@ -250,12 +251,12 @@ export default async function HojePage({ searchParams }: Props) {
       )}
 
       {(emAndamento || proximo) && (
-        <section className={styles.agora} aria-label="Foco do momento">
+        <section className={foco.agora} aria-label="Foco do momento">
           {emAndamento ? (
             <>
-              <p className={styles.agoraEyebrow}>Em andamento</p>
-              <p className={styles.agoraTitulo}>{emAndamento.titulo}</p>
-              <p className={styles.agoraMeta}>
+              <p className={foco.agoraEyebrow}>Em andamento</p>
+              <p className={foco.agoraTitulo}>{emAndamento.titulo}</p>
+              <p className={foco.agoraMeta}>
                 {horarioParaTexto(emAndamento.inicio, emAndamento.fim)} · termina às{' '}
                 {emAndamento.fim} ·{' '}
                 {Math.round(
@@ -266,7 +267,7 @@ export default async function HojePage({ searchParams }: Props) {
                 % do bloco decorrido
               </p>
               <div
-                className={styles.progresso}
+                className={foco.progresso}
                 role="progressbar"
                 aria-label="Tempo decorrido do bloco atual"
                 aria-valuemin={0}
@@ -278,7 +279,7 @@ export default async function HojePage({ searchParams }: Props) {
                 )}
               >
                 <div
-                  className={styles.progressoBarra}
+                  className={foco.progressoBarra}
                   style={{
                     width: `${Math.round(
                       ((agoraMin - emAndamento.inicioMin) /
@@ -291,9 +292,9 @@ export default async function HojePage({ searchParams }: Props) {
             </>
           ) : (
             <>
-              <p className={styles.agoraEyebrow}>Próximo passo</p>
-              <p className={styles.agoraTitulo}>{proximo!.titulo}</p>
-              <p className={styles.agoraMeta}>
+              <p className={foco.agoraEyebrow}>Próximo passo</p>
+              <p className={foco.agoraTitulo}>{proximo!.titulo}</p>
+              <p className={foco.agoraMeta}>
                 {horarioParaTexto(proximo!.inicio, proximo!.fim)}
               </p>
             </>
@@ -302,9 +303,9 @@ export default async function HojePage({ searchParams }: Props) {
       )}
 
       {prioridades.length > 0 && (
-        <section className={styles.prioridades} aria-label="Prioridades do dia">
+        <section className={foco.prioridades} aria-label="Prioridades do dia">
           <h2>Prioridades de hoje</h2>
-          <ul className={styles.lista}>
+          <ul className={foco.lista}>
             {prioridades.map((p) => (
               <li key={p.id}>
                 {p.titulo} · {horarioParaTexto(p.inicio, p.fim)}
@@ -315,26 +316,26 @@ export default async function HojePage({ searchParams }: Props) {
       )}
 
       {comHorario.length > 0 && (
-        <section className={styles.secao} aria-labelledby="linha-titulo">
+        <section className={foco.secao} aria-labelledby="linha-titulo">
           <h2 id="linha-titulo">Linha do dia</h2>
-          <ul className={styles.linha}>
+          <ul className={foco.linha}>
             {comHorario.flatMap((item, indice) => {
               const anterior = indice > 0 ? comHorario[indice - 1]! : null
               const folga =
                 anterior && item.inicioMin - anterior.fimMin >= 10
                   ? [
-                      <li key={`livre-${item.id}`} className={`${styles.linhaItem} ${styles.itemLivre}`}>
-                        <time className={styles.linhaHora}>{minutosParaHora(anterior.fimMin)}</time>
-                        <i className={styles.linhaSinal} aria-hidden="true">
+                      <li key={`livre-${item.id}`} className={`${foco.linhaItem} ${foco.itemLivre}`}>
+                        <time className={foco.linhaHora}>{minutosParaHora(anterior.fimMin)}</time>
+                        <i className={foco.linhaSinal} aria-hidden="true">
                           ≈
                         </i>
-                        <span className={styles.linhaTitulo}>
+                        <span className={foco.linhaTitulo}>
                           Espaço livre
                           <small>
                             {minutosParaHora(anterior.fimMin)}–{item.inicio} · pode continuar assim
                           </small>
                         </span>
-                        <span className={styles.linhaEstado}>livre</span>
+                        <span className={foco.linhaEstado}>livre</span>
                       </li>,
                     ]
                   : []
@@ -352,11 +353,11 @@ export default async function HojePage({ searchParams }: Props) {
                       ? 'sem registro'
                       : 'em seguida'
               const classe = margem
-                ? styles.itemMargem
+                ? foco.itemMargem
                 : estado === 'realizado'
-                  ? styles.itemConcluido
+                  ? foco.itemConcluido
                   : atual
-                    ? styles.itemAtual
+                    ? foco.itemAtual
                     : ''
               const sinal = margem
                 ? '≈'
@@ -368,12 +369,12 @@ export default async function HojePage({ searchParams }: Props) {
               const ehPrioridade = diaProjetado?.prioridades.includes(item.id) ?? false
               return [
                 ...folga,
-                <li key={item.id} className={`${styles.linhaItem} ${classe}`}>
-                  <time className={styles.linhaHora}>{item.inicio}</time>
-                  <i className={styles.linhaSinal} aria-hidden="true">
+                <li key={item.id} className={`${foco.linhaItem} ${classe}`}>
+                  <time className={foco.linhaHora}>{item.inicio}</time>
+                  <i className={foco.linhaSinal} aria-hidden="true">
                     {sinal}
                   </i>
-                  <span className={styles.linhaTitulo}>
+                  <span className={foco.linhaTitulo}>
                     {item.titulo}
                     <small>
                       {horarioParaTexto(item.inicio, item.fim)} ·{' '}
@@ -381,12 +382,12 @@ export default async function HojePage({ searchParams }: Props) {
                       {ehPrioridade && (
                         <>
                           {' '}
-                          · <span className={styles.prioridade}>prioridade</span>
+                          · <span className={foco.prioridade}>prioridade</span>
                         </>
                       )}
                     </small>
                   </span>
-                  <span className={styles.linhaEstado}>{rotulo}</span>
+                  <span className={foco.linhaEstado}>{rotulo}</span>
                 </li>,
               ]
             })}
