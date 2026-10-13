@@ -2,6 +2,7 @@ import Link from 'next/link'
 import styles from '../configurar/configurar.module.css'
 import prop from './proposta.module.css'
 import { Aviso, CabecalhoPagina, EstadoVazio } from '@/app/_components/ui'
+import { ConviteEntrevista } from '@/app/_components/convite-entrevista'
 import { redirect } from 'next/navigation'
 import { storeDoUsuario } from '@/server/auth/contexto'
 import { MENSAGENS_ERRO } from '@/server/persistence/mensagens'
@@ -240,6 +241,7 @@ export default async function PropostaPage({ searchParams }: Props) {
             rascunho até você confirmar.
           </p>
           <FormGerar texto="Gerar proposta semanal" />
+          <ConviteEntrevista />
         </EstadoVazio>
       )}
 

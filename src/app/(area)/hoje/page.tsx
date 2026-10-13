@@ -4,6 +4,7 @@ import styles from './hoje.module.css'
 import foco from '@/app/_components/foco.module.css'
 import ui from '@/app/_components/ui.module.css'
 import { Aviso, CabecalhoPagina, EstadoVazio } from '@/app/_components/ui'
+import { ConviteEntrevista } from '@/app/_components/convite-entrevista'
 import { storeDoUsuario } from '@/server/auth/contexto'
 import { MENSAGENS_ERRO } from '@/server/persistence/mensagens'
 import { avaliarAlertas } from '@/server/dia/alertas'
@@ -515,6 +516,7 @@ export default async function HojePage({ searchParams }: Props) {
       ) : (
         <EstadoVazio titulo="Nenhum planejamento para hoje">
           <p>Quando a semana estiver planejada, os passos de hoje aparecem aqui.</p>
+          <ConviteEntrevista />
         </EstadoVazio>
       )}
 
