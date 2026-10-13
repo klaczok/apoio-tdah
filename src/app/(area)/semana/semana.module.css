@@ -1,0 +1,435 @@
+.container {
+  padding: var(--espaco-xl) var(--espaco-lg);
+}
+
+.intro {
+  margin: 0 0 var(--espaco-lg);
+  max-width: 64ch;
+  color: var(--texto-secundario);
+  font-size: var(--texto-sm);
+}
+
+.navSemana {
+  display: flex;
+  gap: var(--espaco-xs);
+  align-items: center;
+  margin-bottom: var(--espaco-md);
+}
+
+.navSemana a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 var(--espaco-md);
+  color: var(--acao-primaria);
+  font-size: var(--texto-sm);
+  font-weight: 700;
+  text-decoration: none;
+  background: var(--acao-secundaria-fundo);
+  border: 1px solid var(--acao-secundaria-borda);
+  border-radius: var(--raio-pill);
+}
+
+.navSemana a:hover {
+  border-color: var(--acao-primaria);
+}
+
+.navSemana .atual {
+  color: var(--texto-secundario);
+  background: transparent;
+  border-color: transparent;
+}
+
+.rotuloSemana {
+  margin: 0 var(--espaco-xs);
+  color: var(--texto-secundario);
+  font-size: var(--texto-sm);
+}
+
+/* Grade temporal: eixo de horas + sete colunas comparáveis. */
+.gradeScroll {
+  overflow-x: auto;
+  border: 1px solid var(--borda-sutil);
+  border-radius: var(--raio-xl);
+  background: var(--superficie-cartao);
+}
+
+.grade {
+  display: grid;
+  grid-template-columns: 52px repeat(7, minmax(96px, 1fr));
+  grid-template-rows: auto var(--altura-grade, 620px);
+  min-width: 760px;
+}
+
+.canto {
+  border-right: 1px solid var(--borda-sutil);
+  border-bottom: 1px solid var(--borda-sutil);
+  background: var(--superficie-lateral);
+}
+
+.cabDia {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: var(--espaco-xs) var(--espaco-2xs);
+  border-right: 1px solid var(--borda-sutil);
+  border-bottom: 1px solid var(--borda-sutil);
+  background: var(--superficie-cartao);
+  text-align: center;
+}
+
+.cabDiaSemana {
+  color: var(--texto-secundario);
+  font-size: var(--texto-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cabDiaNumero {
+  font-family: var(--fonte-titulo);
+  font-size: var(--texto-lg);
+  line-height: var(--altura-titulo);
+}
+
+.cabDiaCarga {
+  color: var(--texto-terciario);
+  font-size: var(--texto-xs);
+}
+
+.cabDiaHoje {
+  background: var(--superficie-suave);
+}
+
+.cabDiaHoje .cabDiaNumero {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  color: var(--acao-contraste);
+  background: var(--acao-primaria);
+  border-radius: 50%;
+  font-size: var(--texto-base);
+}
+
+.cabDiaFds {
+  background: var(--superficie-lateral);
+}
+
+.horas {
+  position: relative;
+  border-right: 1px solid var(--borda-sutil);
+  background: var(--superficie-lateral);
+}
+
+.horas span {
+  position: absolute;
+  right: 7px;
+  color: var(--texto-terciario);
+  font-size: var(--texto-xs);
+  transform: translateY(-50%);
+}
+
+.coluna {
+  position: relative;
+  border-right: 1px solid var(--borda-sutil);
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(var(--faixa-hora, 12.5%) - 1px),
+    var(--borda-sutil) calc(var(--faixa-hora, 12.5%) - 1px),
+    var(--borda-sutil) var(--faixa-hora, 12.5%)
+  );
+}
+
+.colunaFds {
+  background-color: var(--superficie-lateral);
+}
+
+.colunaHoje {
+  background-color: var(--superficie-quente);
+}
+
+.agora {
+  position: absolute;
+  z-index: 3;
+  top: var(--y);
+  right: 0;
+  left: 0;
+  height: 2px;
+  background: var(--foco);
+}
+
+.agora::before {
+  position: absolute;
+  top: -3px;
+  left: -4px;
+  width: 8px;
+  height: 8px;
+  background: var(--foco);
+  border-radius: 50%;
+  content: '';
+}
+
+.livre {
+  position: absolute;
+  top: var(--topo);
+  right: 5px;
+  left: 5px;
+  height: var(--altura);
+  border: 1px dashed var(--borda-campo);
+  border-radius: var(--raio-sm);
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent 0,
+    transparent 6px,
+    var(--superficie-suave) 6px,
+    var(--superficie-suave) 8px
+  );
+}
+
+.evento {
+  position: absolute;
+  z-index: 2;
+  top: var(--topo);
+  right: 4px;
+  left: 4px;
+  min-height: 30px;
+  height: var(--altura);
+  padding: 0;
+  overflow: visible;
+  color: var(--texto-primario);
+  font: inherit;
+  background: var(--ev-fundo, var(--superficie-suave));
+  border: 1px solid var(--borda-sutil);
+  border-left: 4px solid var(--ev, var(--texto-terciario));
+  border-radius: var(--raio-sm);
+}
+
+.evento[data-categoria='trabalho'] {
+  --ev: var(--categoria-trabalho);
+  --ev-fundo: var(--categoria-trabalho-fundo);
+}
+.evento[data-categoria='saude'] {
+  --ev: var(--categoria-saude);
+  --ev-fundo: var(--categoria-saude-fundo);
+}
+.evento[data-categoria='familia'] {
+  --ev: var(--categoria-familia);
+  --ev-fundo: var(--categoria-familia-fundo);
+}
+.evento[data-categoria='estudo'] {
+  --ev: var(--categoria-estudo);
+  --ev-fundo: var(--categoria-estudo-fundo);
+}
+.evento[data-categoria='musica'] {
+  --ev: var(--categoria-musica);
+  --ev-fundo: var(--categoria-musica-fundo);
+}
+.evento[data-categoria='alimentacao'] {
+  --ev: #7a7d4e;
+  --ev-fundo: #f1f2e2;
+}
+.evento[data-categoria='pessoal'] {
+  --ev: #6e8f86;
+  --ev-fundo: #e9f1ee;
+}
+.evento[data-categoria='descanso'] {
+  --ev: var(--categoria-respiro);
+  --ev-fundo: var(--categoria-respiro-fundo);
+}
+
+.tipoFixo {
+  border-left-width: 5px;
+  border-left-style: double;
+}
+
+.tipoTarefa {
+  border-style: dashed;
+  border-left-style: solid;
+}
+
+.tipoMargem {
+  font-style: italic;
+  opacity: 0.85;
+}
+
+.sobreposto {
+  outline: 2px solid var(--feedback-atencao-fundo);
+  outline-offset: -2px;
+}
+
+.evento summary {
+  display: block;
+  height: 100%;
+  padding: 4px 6px;
+  overflow: hidden;
+  font-size: var(--texto-xs);
+  text-align: left;
+  cursor: pointer;
+  list-style: none;
+}
+
+.evento summary::-webkit-details-marker {
+  display: none;
+}
+
+.evento summary b,
+.evento summary span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.evento summary span {
+  color: var(--texto-secundario);
+}
+
+.evento[open] {
+  z-index: 6;
+  height: auto;
+  min-height: var(--altura);
+  box-shadow: var(--sombra-foco-evento);
+}
+
+.evento[open] summary {
+  overflow: visible;
+  white-space: normal;
+}
+
+.detalheEvento {
+  padding: var(--espaco-xs);
+  font-size: var(--texto-xs);
+  background: var(--superficie-cartao);
+  border-top: 1px dashed var(--borda-sutil);
+  border-radius: 0 0 var(--raio-sm) var(--raio-sm);
+}
+
+.detalheEvento p {
+  margin: 0 0 var(--espaco-2xs);
+}
+
+.semHorario {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  left: 4px;
+  z-index: 1;
+  margin: 0;
+  padding: 3px 6px;
+  overflow: hidden;
+  color: var(--texto-secundario);
+  font-size: var(--texto-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: var(--superficie-quente);
+  border: 1px dashed var(--borda-campo);
+  border-radius: var(--raio-sm);
+}
+
+/* Detalhes por dia: equivalente textual com ajustes, alertas e
+   pendências — a grade comunica posição/duração, esta lista garante
+   leitura completa sem depender da geometria. */
+.detalhesDia {
+  display: grid;
+  gap: var(--espaco-md);
+  margin-top: var(--espaco-lg);
+}
+
+.diaLista {
+  padding: var(--espaco-md) var(--espaco-lg);
+  background: var(--superficie-cartao);
+  border: 1px solid var(--borda-sutil);
+  border-radius: var(--raio-lg);
+}
+
+.diaLista h2 {
+  margin: 0 0 var(--espaco-xs);
+  font-family: var(--fonte-titulo);
+  font-size: var(--texto-lg);
+}
+
+.lista {
+  display: grid;
+  gap: var(--espaco-2xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espaco-xs);
+  align-items: baseline;
+  padding: var(--espaco-2xs) 0;
+  font-size: var(--texto-sm);
+}
+
+.tagFixo,
+.tagFlexivel,
+.tagTarefa {
+  padding: 1px 8px;
+  font-size: var(--texto-xs);
+  font-weight: 700;
+  border-radius: var(--raio-pill);
+}
+
+.tagFixo {
+  color: var(--protecao);
+  background: var(--protecao-fundo);
+}
+
+.tagFlexivel,
+.tagTarefa {
+  color: var(--texto-secundario);
+  background: var(--superficie-suave);
+}
+
+/* Painel de leitura semanal */
+.leitura {
+  margin-top: var(--espaco-lg);
+  padding: var(--espaco-lg);
+  background: var(--superficie-cartao);
+  border: 1px solid var(--borda-sutil);
+  border-radius: var(--raio-lg);
+}
+
+.leitura h2 {
+  margin: 0 0 var(--espaco-sm);
+  font-family: var(--fonte-titulo);
+  font-size: var(--texto-lg);
+}
+
+.leitura p {
+  margin: var(--espaco-2xs) 0;
+  font-size: var(--texto-sm);
+}
+
+.feedback {
+  padding: var(--espaco-sm) var(--espaco-md);
+  color: var(--feedback-sucesso);
+  background: var(--feedback-sucesso-fundo);
+  border-radius: var(--raio-md);
+}
+
+.erro {
+  padding: var(--espaco-sm) var(--espaco-md);
+  color: var(--feedback-erro);
+  background: var(--feedback-erro-fundo);
+  border-radius: var(--raio-md);
+}
+
+.voltar {
+  color: var(--acao-primaria);
+  font-size: var(--texto-sm);
+}
+
+@media (max-width: 820px) {
+  .container {
+    padding: var(--espaco-lg) var(--espaco-sm);
+  }
+}

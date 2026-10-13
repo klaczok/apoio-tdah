@@ -1,9 +1,18 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import styles from '../configurar/configurar.module.css'
+import styles from './semana.module.css'
 import { storeDoUsuario } from '@/server/auth/contexto'
 import { MENSAGENS_ERRO } from '@/server/persistence/mensagens'
 import { instanciaDoDia } from '@/server/dia/gerar'
+import {
+  janelaDaSemana,
+  posicaoAgora,
+  projetarColuna,
+  textoLacuna,
+  type EntradaBloco,
+  type Janela,
+  type TipoBloco,
+} from '@/server/agenda/grade'
 import { diasDaSemana, resumoSemana, type DiaResumo, type ResumoSemana } from '@/server/dia/semana'
 import type { EstadoPrivado } from '@/server/persistence/estado'
 import { ItemNaoEncontradoError } from '@/server/rotina/modelo'
@@ -11,25 +20,51 @@ import { CATEGORIAS, ROTULOS_CATEGORIA, ROTULOS_DIA, type Categoria } from '@/se
 import {
   dataCivilHoje,
   dataCivilParaTexto,
+  ehDataCivil,
+  horaParaMinutos,
   horarioParaTexto,
+  minutosParaHora,
   minutosParaTexto,
+  somarDiasCivil,
 } from '@/server/tempo'
 import { AjusteItem } from '@/app/_components/ajuste-item'
 
 export const dynamic = 'force-dynamic'
 
 type Props = {
-  searchParams: Promise<{ erro?: string; salvo?: string }>
+  searchParams: Promise<{ erro?: string; salvo?: string; semana?: string }>
 }
 
-const ROTULO_PROTECAO: Record<'fixo' | 'flexivel', string> = {
+const ROTULO_TIPO: Record<TipoBloco, string> = {
   fixo: 'Fixo',
   flexivel: 'Flexível',
+  tarefa: 'Tarefa',
+  margem: 'Margem',
 }
 
 const ROTULO_ESTADO: Record<string, string> = {
   parcial: 'parcial',
   reprogramado: 'reprogramado',
+}
+
+const ABREV_DIA: Record<string, string> = {
+  seg: 'Seg',
+  ter: 'Ter',
+  qua: 'Qua',
+  qui: 'Qui',
+  sex: 'Sex',
+  sab: 'Sáb',
+  dom: 'Dom',
+}
+
+function horaAgoraMin(): number {
+  const texto = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(new Date())
+  return horaParaMinutos(texto)
 }
 
 // Projeção de um dia a partir da semana ativa; proposta malformada ou sem
@@ -41,6 +76,27 @@ function projetarDia(dados: EstadoPrivado, data: string, versao: number) {
     if (e instanceof ItemNaoEncontradoError) return null
     throw e
   }
+}
+
+function entradasDoDia(resumo: DiaResumo): EntradaBloco[] {
+  const dia = resumo.instancia
+  if (!dia) return []
+  return [
+    ...dia.itens.map((i) => ({
+      id: i.id,
+      titulo: i.titulo,
+      inicio: i.inicio,
+      fim: i.fim,
+      tipo: (i.origem === 'pausa' ? 'margem' : i.protecao) as TipoBloco,
+    })),
+    ...dia.tarefas.map((t) => ({
+      id: t.id,
+      titulo: t.titulo,
+      inicio: t.inicio,
+      fim: t.fim,
+      tipo: 'tarefa' as TipoBloco,
+    })),
+  ]
 }
 
 function ResumoCategorias({
@@ -56,7 +112,7 @@ function ResumoCategorias({
     <ul className={styles.lista}>
       {presentes.map((c) => (
         <li key={c} className={styles.item}>
-          <span className={styles.itemTexto}>
+          <span>
             {ROTULOS_CATEGORIA[c]}: planejado {minutosParaTexto(planejado[c] ?? 0)}
             {(realizado[c] ?? 0) > 0 ? ` · registrado ${minutosParaTexto(realizado[c] ?? 0)}` : ''}
           </span>
@@ -66,17 +122,17 @@ function ResumoCategorias({
   )
 }
 
-function CardDia({ resumo, hoje }: { resumo: DiaResumo; hoje: string }) {
+// Equivalente textual da coluna: mesmos itens da grade com ajustes,
+// alertas e pendências — nada fica só na geometria visual.
+function DetalheDia({ resumo, hoje }: { resumo: DiaResumo; hoje: string }) {
   const dia = resumo.instancia
-  // Ajuste é ato de planejamento: só dias presentes/futuros e ainda em
-  // rascunho — dia confirmado ou já passado é histórico, não rascunho.
   const ajustavel = Boolean(dia && !dia.confirmadaEm && resumo.data >= hoje)
   return (
     <section
-      className={styles.etapa}
+      className={styles.diaLista}
       aria-label={`${ROTULOS_DIA[resumo.diaSemana]} ${dataCivilParaTexto(resumo.data)}`}
     >
-      <h2 className={styles.subtitulo}>
+      <h2>
         {ROTULOS_DIA[resumo.diaSemana]} · {dataCivilParaTexto(resumo.data)}
       </h2>
       {!dia ? (
@@ -86,11 +142,11 @@ function CardDia({ resumo, hoje }: { resumo: DiaResumo; hoje: string }) {
           <ul className={styles.lista}>
             {dia.itens.map((item) => (
               <li key={item.id} className={styles.item}>
-                <span className={styles.itemTexto}>
+                <span>
                   {horarioParaTexto(item.inicio, item.fim)} · {item.titulo} ·{' '}
                   {ROTULOS_CATEGORIA[item.categoria]} ·{' '}
                   <span className={item.protecao === 'fixo' ? styles.tagFixo : styles.tagFlexivel}>
-                    {ROTULO_PROTECAO[item.protecao]}
+                    {item.protecao === 'fixo' ? 'Fixo' : 'Flexível'}
                   </span>
                 </span>
                 {ajustavel && <AjusteItem item={item} data={resumo.data} volta="semana" />}
@@ -98,31 +154,19 @@ function CardDia({ resumo, hoje }: { resumo: DiaResumo; hoje: string }) {
             ))}
             {dia.tarefas.map((t) => (
               <li key={t.id} className={styles.item}>
-                <span className={styles.itemTexto}>
+                <span>
                   {horarioParaTexto(t.inicio, t.fim)} · {t.titulo} ·{' '}
-                  {ROTULOS_CATEGORIA[t.categoria]} · tarefa
+                  {ROTULOS_CATEGORIA[t.categoria]} · <span className={styles.tagTarefa}>tarefa</span>
                 </span>
                 {ajustavel && <AjusteItem item={t} data={resumo.data} volta="semana" />}
               </li>
             ))}
           </ul>
-          <ResumoCategorias
-            planejado={resumo.minutosPorCategoria}
-            realizado={resumo.minutosRealizadosPorCategoria}
-          />
-          {resumo.trabalhoPlanejadoMin > 0 && (
-            <p>
-              Trabalho — planejado {minutosParaTexto(resumo.trabalhoPlanejadoMin)}
-              {resumo.trabalhoRealizadoMin > 0
-                ? ` · registrado ${minutosParaTexto(resumo.trabalhoRealizadoMin)}`
-                : ' · sem registro ainda'}
-            </p>
-          )}
           {resumo.alertas.length > 0 && (
             <ul className={styles.lista} aria-label="Alertas do dia">
               {resumo.alertas.map((a, i) => (
                 <li key={i} className={styles.item}>
-                  <span className={styles.itemTexto}>{a.mensagem}</span>
+                  <span>{a.mensagem}</span>
                 </li>
               ))}
             </ul>
@@ -147,6 +191,7 @@ function CardDia({ resumo, hoje }: { resumo: DiaResumo; hoje: string }) {
 export default async function SemanaPage({ searchParams }: Props) {
   const params = await searchParams
   const hoje = dataCivilHoje()
+  const referencia = params.semana && ehDataCivil(params.semana) ? params.semana : hoje
   const store = await storeDoUsuario()
   if (!store) redirect('/login')
   const carregado = await store.load()
@@ -156,7 +201,12 @@ export default async function SemanaPage({ searchParams }: Props) {
       : undefined
     : MENSAGENS_ERRO.persistencia
 
-  const datas = diasDaSemana(hoje)
+  const datas = diasDaSemana(referencia)
+  const segunda = datas[0]!
+  const semanaAnterior = somarDiasCivil(segunda, -7)
+  const proximaSemana = somarDiasCivil(segunda, 7)
+  const semanaCorrente = diasDaSemana(hoje).includes(segunda)
+
   let resumo: ResumoSemana | null = null
   if (carregado.ok) {
     const dados = carregado.value.dados
@@ -173,13 +223,65 @@ export default async function SemanaPage({ searchParams }: Props) {
   }
   const algumDia = resumo?.dias.some((d) => d.instancia) ?? false
 
+  // Janela única: todos os horários da semana + sono, para os sete dias
+  // ficarem comparáveis na mesma escala.
+  const referencias: (string | null)[] = []
+  for (const d of resumo?.dias ?? []) {
+    referencias.push(d.instancia?.acordar ?? null, d.instancia?.dormir ?? null)
+    for (const i of d.instancia?.itens ?? []) referencias.push(i.inicio, i.fim)
+    for (const t of d.instancia?.tarefas ?? []) referencias.push(t.inicio, t.fim)
+  }
+  const janela: Janela = janelaDaSemana(referencias)
+  const colunas = (resumo?.dias ?? []).map((d) => ({
+    resumo: d,
+    coluna: projetarColuna(entradasDoDia(d), janela, {
+      acordar: d.instancia?.acordar ?? null,
+      dormir: d.instancia?.dormir ?? null,
+    }),
+  }))
+  const agoraPct = posicaoAgora(horaAgoraMin(), janela)
+
+  const horasEixo: { min: number; rotulo: string; topo: number }[] = []
+  const passo = 120
+  for (let m = janela.inicioMin; m <= janela.fimMin; m += passo) {
+    horasEixo.push({
+      min: m,
+      rotulo: minutosParaHora(m),
+      topo: ((m - janela.inicioMin) / (janela.fimMin - janela.inicioMin)) * 100,
+    })
+  }
+  const faixaHoraPct = (120 / (janela.fimMin - janela.inicioMin)) * 100
+
+  const maiorCarga = colunas.reduce<(typeof colunas)[number] | null>(
+    (acc, c) => (!acc || c.coluna.ocupadoMin > acc.coluna.ocupadoMin ? c : acc),
+    null
+  )
+  const margensMin = colunas.reduce(
+    (acc, c) =>
+      acc +
+      c.coluna.blocos
+        .filter((b) => b.tipo === 'margem')
+        .reduce((s, b) => s + (b.fimMin - b.inicioMin), 0),
+    0
+  )
+
   return (
     <main className={styles.container}>
-      <h1 className={styles.title}>Semana</h1>
+      <h1>Semana</h1>
       <p className={styles.intro}>
-        Visão factual da semana: planejado à esquerda, registrado quando a revisão do dia marcou
-        itens como realizados. Nada aqui é nota ou avaliação.
+        Visão factual da semana: cada bloco mostra horário pela posição e duração pela altura.
+        Nada aqui é nota ou avaliação.
       </p>
+
+      <nav className={styles.navSemana} aria-label="Navegar entre semanas">
+        <Link href={`/semana?semana=${semanaAnterior}`}>← Semana anterior</Link>
+        {!semanaCorrente && <Link href="/semana">Esta semana</Link>}
+        <span className={styles.rotuloSemana}>
+          semana de {dataCivilParaTexto(segunda)}
+        </span>
+        <Link href={`/semana?semana=${proximaSemana}`}>Próxima semana →</Link>
+      </nav>
+
       {params.salvo === '1' && (
         <p role="status" className={styles.feedback}>
           Ajuste salvo.
@@ -191,31 +293,161 @@ export default async function SemanaPage({ searchParams }: Props) {
         </p>
       )}
 
-      {resumo &&
-        (!algumDia ? (
-          <p>Nenhum dia planejado nesta semana ainda.</p>
-        ) : (
-          <>
-            <section className={styles.etapa} aria-label="Resumo da semana">
-              <h2 className={styles.subtitulo}>Totais da semana</h2>
-              <ResumoCategorias
-                planejado={resumo.totaisPorCategoria}
-                realizado={resumo.totaisRealizadosPorCategoria}
-              />
-              {resumo.trabalhoPlanejadoMin > 0 && (
-                <p>
-                  Trabalho na semana — planejado {minutosParaTexto(resumo.trabalhoPlanejadoMin)}
-                  {resumo.trabalhoRealizadoMin > 0
-                    ? ` · registrado ${minutosParaTexto(resumo.trabalhoRealizadoMin)}`
-                    : ' · sem registro ainda'}
-                </p>
-              )}
-            </section>
+      {resumo && !algumDia && <p>Nenhum dia planejado nesta semana ainda.</p>}
+
+      {resumo && algumDia && (
+        <>
+          <div className={styles.gradeScroll}>
+            <div
+              className={styles.grade}
+              role="grid"
+              aria-label={`Agenda da semana de ${dataCivilParaTexto(segunda)}`}
+              style={{ ['--faixa-hora' as string]: `${faixaHoraPct}%` }}
+            >
+              <div className={styles.canto} role="columnheader" aria-label="Horários" />
+              {colunas.map(({ resumo: d, coluna }) => {
+                const fds = d.diaSemana === 'sab' || d.diaSemana === 'dom'
+                const ehHoje = d.data === hoje
+                return (
+                  <div
+                    key={d.data}
+                    role="columnheader"
+                    className={`${styles.cabDia} ${ehHoje ? styles.cabDiaHoje : ''} ${fds ? styles.cabDiaFds : ''}`}
+                  >
+                    <span className={styles.cabDiaSemana}>{ABREV_DIA[d.diaSemana]}</span>
+                    <span className={styles.cabDiaNumero}>{d.data.slice(8)}</span>
+                    <span className="sr-only">{dataCivilParaTexto(d.data)}</span>
+                    {ehHoje && <span className="sr-only">(hoje)</span>}
+                    <span className={styles.cabDiaCarga}>
+                      {coluna.ocupadoMin > 0 ? `${minutosParaTexto(coluna.ocupadoMin)} ocupadas` : 'livre'}
+                    </span>
+                  </div>
+                )
+              })}
+
+              <div className={styles.horas} aria-hidden="true">
+                {horasEixo.map((h) => (
+                  <span key={h.min} style={{ top: `${h.topo}%` }}>
+                    {h.rotulo}
+                  </span>
+                ))}
+              </div>
+              {colunas.map(({ resumo: d, coluna }) => {
+                const fds = d.diaSemana === 'sab' || d.diaSemana === 'dom'
+                const ehHoje = d.data === hoje
+                return (
+                  <div
+                    key={d.data}
+                    role="gridcell"
+                    className={`${styles.coluna} ${fds ? styles.colunaFds : ''} ${ehHoje ? styles.colunaHoje : ''}`}
+                    aria-label={`${ROTULOS_DIA[d.diaSemana]} ${dataCivilParaTexto(d.data)}${ehHoje ? ', hoje' : ''}`}
+                  >
+                    {ehHoje && agoraPct !== null && (
+                      <div
+                        className={styles.agora}
+                        style={{ ['--y' as string]: `${agoraPct}%` }}
+                        role="presentation"
+                      >
+                        <span className="sr-only">agora, {minutosParaHora(horaAgoraMin())}</span>
+                      </div>
+                    )}
+                    {coluna.lacunas.map((l, i) => (
+                      <div
+                        key={`livre-${i}`}
+                        className={styles.livre}
+                        style={
+                          {
+                            ['--topo' as string]: `${l.topoPct}%`,
+                            ['--altura' as string]: `${l.alturaPct}%`,
+                          }
+                        }
+                      >
+                        <span className="sr-only">Espaço livre {textoLacuna(l)}</span>
+                      </div>
+                    ))}
+                    {coluna.blocos.map((b) => {
+                      const categoria =
+                        d.instancia?.itens.find((i) => i.id === b.id)?.categoria ??
+                        d.instancia?.tarefas.find((t) => t.id === b.id)?.categoria ??
+                        'pessoal'
+                      const ajustavel = Boolean(
+                        d.instancia && !d.instancia.confirmadaEm && d.data >= hoje
+                      )
+                      const fonte =
+                        d.instancia?.itens.find((i) => i.id === b.id) ??
+                        d.instancia?.tarefas.find((t) => t.id === b.id)
+                      return (
+                        <details
+                          key={b.id}
+                          className={`${styles.evento} ${b.tipo === 'fixo' ? styles.tipoFixo : ''} ${b.tipo === 'tarefa' ? styles.tipoTarefa : ''} ${b.tipo === 'margem' ? styles.tipoMargem : ''} ${b.sobreposto ? styles.sobreposto : ''}`}
+                          data-categoria={categoria}
+                          aria-label={`${b.titulo}, ${horarioParaTexto(b.inicio, b.fim)}, ${ROTULOS_CATEGORIA[categoria]}, ${ROTULO_TIPO[b.tipo]}${b.sobreposto ? ', sobreposto a outro item' : ''}`}
+                          style={
+                            {
+                              ['--topo' as string]: `${b.topoPct}%`,
+                              ['--altura' as string]: `${b.alturaPct}%`,
+                            }
+                          }
+                        >
+                          <summary>
+                            <b>{b.titulo}</b>
+                            <span>
+                              {horarioParaTexto(b.inicio, b.fim)} · {ROTULO_TIPO[b.tipo]}
+                            </span>
+                          </summary>
+                          <div className={styles.detalheEvento}>
+                            <p>
+                              {horarioParaTexto(b.inicio, b.fim)} · {ROTULOS_CATEGORIA[categoria]} ·{' '}
+                              {ROTULO_TIPO[b.tipo]}
+                            </p>
+                            {ajustavel && fonte && (
+                              <AjusteItem item={fonte} data={d.data} volta="semana" />
+                            )}
+                          </div>
+                        </details>
+                      )
+                    })}
+                    {coluna.semHorario.length > 0 && (
+                      <p className={styles.semHorario} title="Horário a confirmar">
+                        {coluna.semHorario.map((i) => i.titulo).join(' · ')} — a confirmar
+                      </p>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          <section className={styles.leitura} aria-label="Leitura da semana">
+            <h2>Leitura da semana</h2>
+            {maiorCarga && maiorCarga.coluna.ocupadoMin > 0 && (
+              <p>
+                Maior carga: {ROTULOS_DIA[maiorCarga.resumo.diaSemana]} com{' '}
+                {minutosParaTexto(maiorCarga.coluna.ocupadoMin)} ocupadas.
+              </p>
+            )}
+            {margensMin > 0 && <p>Margens preservadas: {minutosParaTexto(margensMin)}.</p>}
+            <ResumoCategorias
+              planejado={resumo.totaisPorCategoria}
+              realizado={resumo.totaisRealizadosPorCategoria}
+            />
+            {resumo.trabalhoPlanejadoMin > 0 && (
+              <p>
+                Trabalho na semana — planejado {minutosParaTexto(resumo.trabalhoPlanejadoMin)}
+                {resumo.trabalhoRealizadoMin > 0
+                  ? ` · registrado ${minutosParaTexto(resumo.trabalhoRealizadoMin)}`
+                  : ' · sem registro ainda'}
+              </p>
+            )}
+          </section>
+
+          <div className={styles.detalhesDia}>
             {resumo.dias.map((d) => (
-              <CardDia key={d.data} resumo={d} hoje={hoje} />
+              <DetalheDia key={d.data} resumo={d} hoje={hoje} />
             ))}
-          </>
-        ))}
+          </div>
+        </>
+      )}
 
       <p>
         <Link className={styles.voltar} href="/hoje">

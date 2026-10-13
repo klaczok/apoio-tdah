@@ -124,3 +124,93 @@ describe('/semana — equilíbrio semanal', () => {
     expect(container.textContent).not.toMatch(/parabéns|você falhou|produtividade/i)
   })
 })
+
+describe('/semana — grade temporal', () => {
+  it('apresenta a agenda como grade com os sete dias e eixo de horas', async () => {
+    await comSemana()
+
+    await renderizar()
+
+    const grade = screen.getByRole('grid', { name: /agenda da semana/i })
+    expect(grade).toBeInTheDocument()
+    expect(screen.getAllByRole('columnheader')).toHaveLength(8) // eixo + 7 dias
+    expect(screen.getAllByRole('gridcell')).toHaveLength(7)
+  })
+
+  it('blocos carregam rótulo textual com horário, categoria e proteção', async () => {
+    await comSemana()
+
+    await renderizar()
+
+    expect(
+      screen.getByRole('group', { name: /consulta.*10:00–10:30.*saúde.*fixo/i })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('group', { name: /violino.*flexível/i })
+    ).toBeInTheDocument()
+  })
+
+  it('navega entre semana anterior, atual e próxima preservando a data na rota', async () => {
+    await comSemana()
+    const hoje = dataCivilHoje()
+    const segunda = diasDaSemana(hoje)[0]!
+    const anterior = new Date(new Date(`${segunda}T12:00:00Z`).getTime() - 7 * 86400000)
+      .toISOString()
+      .slice(0, 10)
+    const proxima = new Date(new Date(`${segunda}T12:00:00Z`).getTime() + 7 * 86400000)
+      .toISOString()
+      .slice(0, 10)
+
+    await renderizar()
+
+    expect(
+      screen.getByRole('link', { name: /semana anterior/i })
+    ).toHaveAttribute('href', `/semana?semana=${anterior}`)
+    expect(
+      screen.getByRole('link', { name: /próxima semana/i })
+    ).toHaveAttribute('href', `/semana?semana=${proxima}`)
+    // Na semana corrente o atalho "Esta semana" não precisa aparecer.
+    expect(screen.queryByRole('link', { name: /esta semana/i })).not.toBeInTheDocument()
+  })
+
+  it('outra semana mostra os dias dela e oferece voltar à corrente', async () => {
+    await comSemana()
+    const hoje = dataCivilHoje()
+    const outra = new Date(new Date(`${hoje}T12:00:00Z`).getTime() + 14 * 86400000)
+      .toISOString()
+      .slice(0, 10)
+
+    await renderizar({ semana: outra })
+
+    for (const data of diasDaSemana(outra)) {
+      expect(screen.getAllByText(new RegExp(dataCivilParaTexto(data))).length).toBeGreaterThan(0)
+    }
+    expect(screen.getByRole('link', { name: /esta semana/i })).toHaveAttribute('href', '/semana')
+  })
+
+  it('o dia atual é identificado na grade sem depender só de cor', async () => {
+    await comSemana()
+
+    await renderizar()
+
+    const hoje = dataCivilParaTexto(dataCivilHoje())
+    const coluna = screen.getByRole('gridcell', { name: new RegExp(`${hoje}.*hoje`, 'i') })
+    expect(coluna).toBeInTheDocument()
+  })
+
+  it('espaços livres aparecem como respiro com equivalente textual', async () => {
+    await comSemana()
+
+    await renderizar()
+
+    expect(screen.getAllByText(/espaço livre/i).length).toBeGreaterThan(0)
+  })
+
+  it('leitura da semana identifica maior carga e margens com dados reais', async () => {
+    await comSemana()
+
+    await renderizar()
+
+    expect(screen.getByText(/maior carga/i)).toBeInTheDocument()
+  })
+})
