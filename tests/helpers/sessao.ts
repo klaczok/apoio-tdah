@@ -23,4 +23,10 @@ export async function autenticarComoLegado(): Promise<void> {
 
 export function limparSessao(): void {
   delete globalState.__sessaoTeste
+  delete (globalThis as { __entrevistaTeste?: string }).__entrevistaTeste
+}
+
+// Simula o cookie efêmero de consentimento da entrevista.
+export function consentirEntrevista(valor: string): void {
+  ;(globalThis as { __entrevistaTeste?: string }).__entrevistaTeste = valor
 }

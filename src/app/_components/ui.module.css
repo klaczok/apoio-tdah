@@ -206,3 +206,24 @@
     border-radius: var(--raio-lg);
   }
 }
+
+.convite {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  border: 1px solid var(--acao-secundaria-borda);
+  border-radius: 12px;
+  background: var(--superficie-suave);
+  align-items: flex-start;
+}
+
+.convite h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.convite p {
+  margin: 0;
+  color: var(--texto-secundario);
+}
