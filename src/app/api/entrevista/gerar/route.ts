@@ -1,7 +1,7 @@
 import { identidadeAutenticada } from '@/server/auth/contexto'
 import { sessaoDaEntrevista } from '@/server/entrevista/sessao'
 import { obterDocumento, descartarDocumento } from '@/server/entrevista/documento'
-import { guardarRotinaInterpretada, obterPerguntas } from '@/server/entrevista/material'
+import { guardarRotinaInterpretada, obterHistorico } from '@/server/entrevista/material'
 import { interpretarEntrevista } from '@/server/entrevista/interpretar'
 import { getInterpretador } from '@/server/ia'
 import { getStateStore } from '@/server/persistence'
@@ -22,10 +22,9 @@ export async function POST() {
   if (!sessao.respostas) return redirecionar('/entrevista/etapas')
 
   const documento = obterDocumento(identidade.usuarioId)
-  const perguntas = obterPerguntas(identidade.usuarioId)
+  const historico = obterHistorico(identidade.usuarioId)
   const resultado = await interpretarEntrevista(getInterpretador(), {
-    respostas: sessao.respostas,
-    perguntas: perguntas?.map(({ id, titulo, pergunta }) => ({ id, titulo, pergunta })) ?? null,
+    historico: historico?.mensagens ?? [],
     documentoTexto: documento?.texto ?? null,
   })
   if (!resultado.ok) {

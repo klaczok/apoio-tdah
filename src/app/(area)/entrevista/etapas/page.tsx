@@ -8,9 +8,9 @@ import styles from '../entrevista.module.css'
 export const dynamic = 'force-dynamic'
 
 // Portão da entrevista: sem consentimento registrado na sessão efêmera,
-// a coleta não começa e nenhum dado pode ir ao provedor de IA. Quem
-// volta da revisão encontra as respostas já respondidas — refazer uma
-// etapa não exige refazer as cinco.
+// a conversa não começa e nenhum dado pode ir ao provedor de IA. Quem
+// volta da revisão retoma a transcrição de onde parou — o histórico
+// fica guardado em material transitório no servidor.
 export default async function EtapasPage() {
   const store = await storeDoUsuario()
   if (!store) redirect('/login')
@@ -24,10 +24,10 @@ export default async function EtapasPage() {
     <main className={styles.container}>
       <CabecalhoPagina
         eyebrow="Entrevista"
-        titulo="Suas respostas"
-        subtitulo="Cinco etapas curtas."
+        titulo="Sua conversa"
+        subtitulo="A IA conduz — você só responde."
       />
-      <WizardEntrevista respostasIniciais={sessao.respostas} />
+      <WizardEntrevista />
     </main>
   )
 }

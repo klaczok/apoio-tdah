@@ -1,9 +1,9 @@
 import { EntrevistadorGemini, InterpretadorGemini } from './gemini'
 import type { EntradaInterpretacao, InterpretadorIA, ResultadoInterpretacao } from './interpretador'
-import type { EntrevistadorIA, PerguntaEntrevista, ResultadoPerguntas } from './entrevistador'
+import type { EntrevistadorIA, MensagemConversa, ResultadoConversa } from './entrevistador'
 
 export type { EntradaInterpretacao, InterpretadorIA, ResultadoInterpretacao }
-export type { EntrevistadorIA, PerguntaEntrevista, ResultadoPerguntas }
+export type { EntrevistadorIA, MensagemConversa, ResultadoConversa }
 
 // Interpretador falso para testes e desenvolvimento local sem chave:
 // devolve o que estiver em globalThis.__respostaIA — mesma forma do
@@ -16,11 +16,19 @@ const interpretadorFalso: InterpretadorIA = {
   },
 }
 
-// Entrevistador falso: devolve as perguntas em globalThis.__perguntasIA.
+// Entrevistador falso: consome a fila em globalThis.__respostaConversaIA
+// (ou repete o valor único) e registra o histórico recebido em
+// __historicoConversaIA para as asserções dos testes.
 const entrevistadorFalso: EntrevistadorIA = {
-  async perguntar() {
-    const perguntas = (globalThis as { __perguntasIA?: ResultadoPerguntas }).__perguntasIA
-    return perguntas ?? { ok: false, motivo: 'indisponivel' }
+  async conversar(historico) {
+    const global = globalThis as {
+      __respostaConversaIA?: ResultadoConversa | ResultadoConversa[]
+      __historicoConversaIA?: MensagemConversa[]
+    }
+    global.__historicoConversaIA = historico
+    const programada = global.__respostaConversaIA
+    if (Array.isArray(programada)) return programada.shift() ?? { ok: false, motivo: 'vazia' }
+    return programada ?? { ok: false, motivo: 'indisponivel' }
   },
 }
 

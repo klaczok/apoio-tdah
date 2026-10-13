@@ -22,15 +22,17 @@ export default async function EntrevistaPage() {
       <CabecalhoPagina
         eyebrow="Começo opcional"
         titulo="Entrevista inicial"
-        subtitulo="Cinco perguntas curtas para montar uma primeira proposta da sua semana — com ajuda de IA, no seu ritmo."
+        subtitulo="Uma conversa guiada pela IA — ela pergunta sobre a sua rotina e propõe a primeira versão da sua semana."
       />
 
       <section className={styles.cartao} aria-label="Como a entrevista funciona">
         <ul>
-          <li>São cinco etapas curtas, com opções para marcar e espaço para escrever se quiser.</li>
           <li>
-            Antes de qualquer envio, você decide se aceita que suas respostas sejam processadas por
-            IA — e pode seguir sem ela.
+            A IA faz uma pergunta por vez e conhece você primeiro — sem número fixo de perguntas.
+          </li>
+          <li>
+            Antes de qualquer envio, você decide se aceita que a conversa seja processada por IA — e
+            pode seguir sem ela.
           </li>
           <li>
             Se sair ou fechar a página no meio, o progresso é perdido e nada fica salvo da

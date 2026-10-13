@@ -1,9 +1,9 @@
 import type { EntradaInterpretacao, InterpretadorIA, ResultadoInterpretacao } from './interpretador'
-import type { EntrevistadorIA, PerguntaEntrevista, ResultadoPerguntas } from './entrevistador'
+import type { EntrevistadorIA, MensagemConversa, ResultadoConversa } from './entrevistador'
 
-const MODELO_PADRAO = 'gemini-2.0-flash'
+const MODELO_PADRAO = 'gemini-2.5-flash'
 const TIMEOUT_MS = 15_000
-const MAX_PERGUNTAS = 5
+const SINAL_PRONTO = '[[PRONTO]]'
 
 // Adaptador do Gemini Developer API (Free Tier), usado exclusivamente
 // no servidor. A chave sai de GEMINI_API_KEY e nunca é exposta ao
@@ -18,7 +18,7 @@ type Chamada =
   { ok: true; texto: string } | { ok: false; motivo: 'indisponivel' | 'invalida' | 'vazia' }
 
 // Chamada única ao generateContent. Os logs registram apenas status e
-// motivo — nunca a chave, o prompt ou o conteúdo das respostas.
+// motivo — nunca a chave, o prompt ou o conteúdo da conversa.
 async function chamar(apiKey: string | undefined, prompt: string): Promise<Chamada> {
   if (!apiKey) {
     console.warn('[ia/gemini] GEMINI_API_KEY ausente — entrevista por IA indisponível')
@@ -37,7 +37,6 @@ async function chamar(apiKey: string | undefined, prompt: string): Promise<Chama
         },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { responseMimeType: 'application/json' },
         }),
         signal: AbortSignal.timeout(TIMEOUT_MS),
       }
@@ -80,49 +79,39 @@ function jsonDoTexto(texto: string): Record<string, unknown> | null {
   }
 }
 
-// Formula as cinco perguntas da entrevista com perfil de psiquiatra em
-// primeira consulta de rotina — cada pergunta abre espaço para a pessoa
-// contar com as próprias palavras, e as respostas alimentam a montagem
-// do calendário semanal.
+function transcrever(historico: MensagemConversa[]): string {
+  return historico.map((m) => `${m.papel === 'ia' ? 'IA' : 'Pessoa'}: ${m.texto}`).join('\n')
+}
+
+// Conduz a entrevista como um psiquiatra em primeira consulta: conhece
+// a pessoa primeiro e faz quantas perguntas precisar — sem número
+// fixo — até ter material para montar um calendário semanal coerente
+// com a vida dela. Quando estiver satisfeito, sinaliza [[PRONTO]].
 export class EntrevistadorGemini implements EntrevistadorIA {
   constructor(private readonly apiKey = process.env.GEMINI_API_KEY) {}
 
-  async perguntar(): Promise<ResultadoPerguntas> {
+  async conversar(historico: MensagemConversa[]): Promise<ResultadoConversa> {
     const prompt = [
       'Você é um psiquiatra conduzindo a primeira consulta com um paciente para entender a rotina dele e montar um calendário semanal realista.',
-      'Formule exatamente 5 perguntas em português brasileiro, acolhedoras e não clínicas, que a pessoa responde com texto livre.',
-      'As perguntas devem cobrir, nesta ordem:',
-      '1. o que mais importa para a pessoa neste momento (prioridades e objetivos);',
-      '2. os compromissos fixos da semana, com dias e horários (trabalho, aulas, consultas, cuidado de pessoas);',
-      '3. sono, refeições e autocuidado — horários habituais de dormir, acordar e comer;',
-      '4. responsabilidades que pesam e o que costuma dificultar a organização do dia;',
-      '5. em que período do dia a energia costuma estar mais alta.',
-      'Responda APENAS com JSON válido neste formato:',
-      '{"perguntas":[{"titulo":"rótulo curto da etapa","pergunta":"pergunta completa e acolhedora"}]}',
+      'Conduza a conversa em português brasileiro, com acolhimento e sem jargão clínico — uma pergunta por vez.',
+      'Comece se apresentando em uma frase e fazendo a primeira pergunta, buscando conhecer a pessoa antes de detalhar horários.',
+      'Ao longo da conversa, cubra: prioridades e o que mais importa agora; compromissos fixos com dias e horários; sono, refeições e autocuidado; responsabilidades que pesam e o que dificulta organizar o dia; em que período a energia está mais alta.',
+      'Faça perguntas de aprofundamento quando a resposta estiver vaga — não há número fixo de perguntas, mas também não prolongue além do necessário.',
+      'Quando tiver informação suficiente para montar um calendário semanal coerente com a vida da pessoa, escreva uma breve mensagem de encerramento agradecendo e finalize a última linha apenas com o marcador [[PRONTO]].',
+      'Responda apenas com a próxima mensagem sua, em texto corrido — sem prefixos, sem JSON.',
+      '',
+      historico.length > 0
+        ? `Conversa até aqui:\n${transcrever(historico)}`
+        : 'A conversa ainda não começou.',
     ].join('\n')
 
     const chamada = await chamar(this.apiKey, prompt)
     if (!chamada.ok) return chamada
 
-    const json = jsonDoTexto(chamada.texto)
-    const brutas = Array.isArray(json?.perguntas) ? json.perguntas : null
-    if (!brutas || brutas.length === 0) return { ok: false, motivo: 'invalida' }
-
-    const perguntas: PerguntaEntrevista[] = []
-    for (const bruta of brutas.slice(0, MAX_PERGUNTAS)) {
-      if (!bruta || typeof bruta !== 'object') continue
-      const { titulo, pergunta } = bruta as { titulo?: unknown; pergunta?: unknown }
-      if (typeof pergunta !== 'string' || !pergunta.trim()) continue
-      perguntas.push({
-        id: `p${perguntas.length + 1}`,
-        titulo:
-          typeof titulo === 'string' && titulo.trim()
-            ? titulo.trim().slice(0, 80)
-            : `Pergunta ${perguntas.length + 1}`,
-        pergunta: pergunta.trim().slice(0, 240),
-      })
-    }
-    return perguntas.length > 0 ? { ok: true, perguntas } : { ok: false, motivo: 'invalida' }
+    const concluiu = chamada.texto.includes(SINAL_PRONTO)
+    const mensagem = chamada.texto.replace(SINAL_PRONTO, '').trim()
+    if (!mensagem) return { ok: false, motivo: 'vazia' }
+    return { ok: true, mensagem: mensagem.slice(0, 600), concluiu }
   }
 }
 
@@ -139,10 +128,7 @@ export class InterpretadorGemini implements InterpretadorIA {
       '"periodos":[{"tipo":"cuidado-familiar|indisponibilidade","diaSemana":"seg","inicio":"HH:MM","fim":"HH:MM"}],',
       '"preferenciaCarga":"leve|equilibrada|intensa"}',
       'Não invente horários, durações ou compromissos que a pessoa não mencionou.',
-      entrada.perguntas
-        ? `Perguntas feitas na entrevista:\n${JSON.stringify(entrada.perguntas)}`
-        : '',
-      `Respostas da entrevista:\n${JSON.stringify(entrada.respostas)}`,
+      `Transcrição da entrevista:\n${transcrever(entrada.historico)}`,
       entrada.documentoTexto ? `Documento de apoio (transcrito):\n${entrada.documentoTexto}` : '',
     ].join('\n')
 
