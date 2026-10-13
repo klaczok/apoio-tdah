@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { SESSION_COOKIE_NAME } from '@/server/auth/cookies'
 import { verifySessionToken } from '@/server/auth/session'
 
-const PUBLIC_PATHS = new Set(['/', '/login'])
+const PUBLIC_PATHS = new Set(['/', '/login', '/cadastro'])
 const PUBLIC_PREFIXES = ['/api/auth/']
 
 function isPublicPath(pathname: string): boolean {

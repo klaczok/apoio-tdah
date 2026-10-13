@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { ShellPublico } from '@/app/_components/shell'
 import { Aviso } from '@/app/_components/ui'
 import ui from '@/app/_components/ui.module.css'
@@ -45,6 +46,9 @@ export default async function LoginPage({ searchParams }: Props) {
             Entrar
           </button>
         </form>
+        <p className={ui.ajudaCampo}>
+          Ainda não tem conta? <Link href="/cadastro">Criar conta</Link>
+        </p>
       </main>
     </ShellPublico>
   )
