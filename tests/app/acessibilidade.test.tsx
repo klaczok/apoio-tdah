@@ -5,7 +5,9 @@ import ConfigurarPage from '@/app/(area)/configurar/page'
 import HistoricoPage from '@/app/(area)/historico/page'
 import HistoricoDiaPage from '@/app/(area)/historico/[data]/page'
 import HojePage from '@/app/(area)/hoje/page'
+import CadastroPage from '@/app/cadastro/page'
 import LoginPage from '@/app/login/page'
+import NovoCompromissoPage from '@/app/(area)/semana/novo/page'
 import PropostaPage from '@/app/(area)/proposta/page'
 import SemanaPage from '@/app/(area)/semana/page'
 import { getStateStore } from '@/server/persistence'
@@ -147,6 +149,45 @@ describe('acessibilidade automatizada das jornadas', () => {
       })
     )
     expect(await axe(detalhe.container, regras)).toHaveNoViolations()
+  })
+
+  it('cadastro não tem violações — nem no estado de formulário inválido', async () => {
+    const limpo = render(await CadastroPage({ searchParams: Promise.resolve({}) }))
+    expect(await axe(limpo.container, regras)).toHaveNoViolations()
+    limpo.unmount()
+
+    const invalido = render(
+      await CadastroPage({
+        searchParams: Promise.resolve({ erro: 'email-invalido', email: 'x@x' }),
+      })
+    )
+    expect(await axe(invalido.container, regras)).toHaveNoViolations()
+  })
+
+  it('estado vazio da semana não tem violações', async () => {
+    await salvar(estadoVazio())
+    const { container } = render(await SemanaPage({ searchParams: Promise.resolve({}) }))
+    expect(await axe(container, regras)).toHaveNoViolations()
+  })
+
+  it('semana com erro de salvamento não tem violações', async () => {
+    await comSemanaAtiva()
+    const { container } = render(
+      await SemanaPage({ searchParams: Promise.resolve({ erro: 'indisponivel' }) })
+    )
+    expect(await axe(container, regras)).toHaveNoViolations()
+  })
+
+  it('formulário de novo compromisso não tem violações — nem com erro', async () => {
+    await comSemanaAtiva()
+    const limpo = render(await NovoCompromissoPage({ searchParams: Promise.resolve({}) }))
+    expect(await axe(limpo.container, regras)).toHaveNoViolations()
+    limpo.unmount()
+
+    const comErro = render(
+      await NovoCompromissoPage({ searchParams: Promise.resolve({ erro: 'entrada' }) })
+    )
+    expect(await axe(comErro.container, regras)).toHaveNoViolations()
   })
 })
 
