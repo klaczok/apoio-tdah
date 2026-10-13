@@ -122,3 +122,22 @@
   flex-direction: column;
   gap: 1rem;
 }
+
+.blocos {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.blocoDia h3 {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+}
+
+.blocoDia ul {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
