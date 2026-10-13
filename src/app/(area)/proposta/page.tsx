@@ -1,5 +1,7 @@
 import Link from 'next/link'
 import styles from '../configurar/configurar.module.css'
+import prop from './proposta.module.css'
+import { Aviso, CabecalhoPagina, EstadoVazio } from '@/app/_components/ui'
 import { redirect } from 'next/navigation'
 import { storeDoUsuario } from '@/server/auth/contexto'
 import { MENSAGENS_ERRO } from '@/server/persistence/mensagens'
@@ -94,21 +96,60 @@ function AcaoSugestao({ sugestao }: { sugestao: Sugestao }) {
   )
 }
 
-function ItemSugestao({ sugestao, editavel }: { sugestao: Sugestao; editavel: boolean }) {
+// Comparação factual entre a semana vigente e o rascunho: mesma
+// sugestão com horário ou título diferente mostra "antes → proposta";
+// id novo aparece como novo, sem inferir mais nada.
+function comparacaoSugestao(sugestao: Sugestao, vigente: Map<string, Sugestao> | null) {
+  if (!vigente) return null
+  const anterior = vigente.get(sugestao.id)
+  if (!anterior) return 'Novo nesta proposta.'
+  if (anterior.titulo !== sugestao.titulo || horario(anterior) !== horario(sugestao)) {
+    return `Antes: ${anterior.titulo}, ${horario(anterior)} → proposta: ${sugestao.titulo}, ${horario(sugestao)}`
+  }
+  return null
+}
+
+function ItemSugestao({
+  sugestao,
+  editavel,
+  vigente,
+}: {
+  sugestao: Sugestao
+  editavel: boolean
+  vigente: Map<string, Sugestao> | null
+}) {
+  const comparacao = comparacaoSugestao(sugestao, vigente)
+  const protegido = sugestao.protecao === 'fixo'
   return (
-    <li className={styles.item}>
-      <span className={styles.itemTexto}>
-        {horario(sugestao)} · {sugestao.titulo} · {ROTULOS_CATEGORIA[sugestao.categoria]} ·{' '}
-        {sugestao.protecao === 'fixo' ? 'Fixo' : 'Flexível'}
-        {sugestao.aceita ? ' · aceita' : ''}
+    <li className={`${prop.sugestao} ${protegido ? prop.sugestaoProtegida : ''}`}>
+      <span className={prop.sugestaoCabeca}>
+        <span className={prop.sugestaoTitulo}>{sugestao.titulo}</span>
+        <span className={prop.sugestaoMeta}>
+          {horario(sugestao)} · {ROTULOS_CATEGORIA[sugestao.categoria]}
+        </span>
+        <span className={`${prop.tag} ${sugestao.aceita ? prop.tagAceita : prop.tagPendente}`}>
+          {sugestao.aceita ? 'Aceita' : 'Pendente'}
+        </span>
+        <span className={`${prop.tag} ${protegido ? prop.tagProtegido : ''}`}>
+          {protegido ? '◈ Protegido' : '◇ Flexível'}
+        </span>
       </span>
-      <p className={styles.dica}>{sugestao.explicacao}</p>
+      <p className={prop.justificativa}>{sugestao.explicacao}</p>
+      {comparacao && <p className={prop.comparacao}>{comparacao}</p>}
       {editavel && <AcaoSugestao sugestao={sugestao} />}
     </li>
   )
 }
 
-function DiaProposta({ dia, editavel }: { dia: DiaProposta; editavel: boolean }) {
+function DiaProposta({
+  dia,
+  editavel,
+  vigente,
+}: {
+  dia: DiaProposta
+  editavel: boolean
+  vigente: Map<string, Sugestao> | null
+}) {
   return (
     <section className={styles.form} aria-label={ROTULOS_DIA[dia.diaSemana]}>
       <h2 className={styles.subtitulo}>{ROTULOS_DIA[dia.diaSemana]}</h2>
@@ -121,7 +162,7 @@ function DiaProposta({ dia, editavel }: { dia: DiaProposta; editavel: boolean })
       ) : (
         <ul className={styles.lista}>
           {dia.sugestoes.map((s) => (
-            <ItemSugestao key={s.id} sugestao={s} editavel={editavel} />
+            <ItemSugestao key={s.id} sugestao={s} editavel={editavel} vigente={vigente} />
           ))}
         </ul>
       )}
@@ -151,41 +192,55 @@ export default async function PropostaPage({ searchParams }: Props) {
   const vigente = carregado.ok ? carregado.value.dados.semanaAtiva : null
   const mensagemErro = params.erro ? MENSAGENS_ERRO[params.erro] : undefined
 
+  // Mapa da semana ativa por id: base da comparação antes → proposta.
+  const vigenteMap = vigente
+    ? new Map(vigente.dias.flatMap((d) => d.sugestoes.map((sug) => [sug.id, sug])))
+    : null
+
+  const estado = rascunho
+    ? { rotulo: 'Rascunho em edição', classe: prop.estadoRascunho }
+    : vigente
+      ? { rotulo: 'Semana ativa', classe: prop.estadoVigente }
+      : null
+
   return (
     <main className={styles.container}>
-      <h1 className={styles.title}>Proposta da semana</h1>
+      <CabecalhoPagina
+        eyebrow="Planejamento assistido"
+        titulo="Proposta da semana"
+        subtitulo={
+          rascunho
+            ? 'Revise cada sugestão — a semana vigente só muda depois da confirmação.'
+            : vigente
+              ? 'A semana confirmada que orienta seus dias.'
+              : 'A proposta organiza sua semana a partir da configuração.'
+        }
+        acoes={estado && <span className={estado.classe}>{estado.rotulo}</span>}
+      />
 
       {params.gerada === '1' && (
-        <p role="status" className={styles.feedback}>
+        <Aviso tipo="sucesso">
           Proposta gerada como rascunho — nada muda na semana vigente até você confirmar.
-        </p>
+        </Aviso>
       )}
-      {params.confirmada === '1' && (
-        <p role="status" className={styles.feedback}>
-          Proposta confirmada.
-        </p>
-      )}
-      {params.salvo === '1' && (
-        <p role="status" className={styles.feedback}>
-          Sugestão atualizada.
-        </p>
-      )}
+      {params.confirmada === '1' && <Aviso tipo="sucesso">Proposta confirmada.</Aviso>}
+      {params.salvo === '1' && <Aviso tipo="sucesso">Sugestão atualizada.</Aviso>}
       {(mensagemErro || erroCarga) && (
-        <p role="alert" className={styles.erro}>
+        <Aviso tipo="erro">
           {mensagemErro ?? 'Não foi possível carregar sua proposta agora. Tente recarregar.'}
-        </p>
+        </Aviso>
       )}
 
       {!rascunho && !vigente && !erroCarga && (
-        <>
-          <p className={styles.intro}>
+        <EstadoVazio titulo="Nenhuma proposta ainda">
+          <p>
             A proposta organiza sua semana a partir da configuração: primeiro compromissos fixos,
             cuidado familiar, sono e indisponibilidades; depois preparação, deslocamentos, refeições
             e margens; por fim trabalho e objetivos flexíveis conforme a capacidade. Ela fica em
             rascunho até você confirmar.
           </p>
           <FormGerar texto="Gerar proposta semanal" />
-        </>
+        </EstadoVazio>
       )}
 
       {rascunho && (
@@ -195,7 +250,7 @@ export default async function PropostaPage({ searchParams }: Props) {
             sugestão — a semana vigente só muda depois da confirmação.
           </p>
           {rascunho.dias.map((dia) => (
-            <DiaProposta key={dia.diaSemana} dia={dia} editavel />
+            <DiaProposta key={dia.diaSemana} dia={dia} editavel vigente={vigenteMap} />
           ))}
           <form action="/api/proposta" method="post">
             <input type="hidden" name="acao" value="confirmar" />
@@ -209,11 +264,11 @@ export default async function PropostaPage({ searchParams }: Props) {
 
       {!rascunho && vigente && (
         <>
-          <p role="status" className={styles.feedback}>
+          <Aviso tipo="info">
             Proposta confirmada em {dataHoraParaTexto(vigente.confirmadaEm!)}.
-          </p>
+          </Aviso>
           {vigente.dias.map((dia) => (
-            <DiaProposta key={dia.diaSemana} dia={dia} editavel={false} />
+            <DiaProposta key={dia.diaSemana} dia={dia} editavel={false} vigente={vigenteMap} />
           ))}
           <FormGerar texto="Gerar nova proposta" />
         </>

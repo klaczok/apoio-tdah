@@ -83,9 +83,42 @@ describe('Proposta semanal', () => {
 
     await renderizar()
 
-    expect(screen.getByText(/confirmada/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/confirmada/i).length).toBeGreaterThan(0)
     expect(screen.queryByRole('button', { name: /aceitar/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /confirmar proposta/i })).not.toBeInTheDocument()
+  })
+
+  it('distingue rascunho da semana ativa e sinaliza protegidos', async () => {
+    const rotina = rotinaBase()
+    await gravar({
+      ...estadoVazio(),
+      rotina,
+      propostaSemanal: gerarPropostaSemanal(rotina, new Date('2026-10-12T12:00:00Z')),
+    })
+
+    await renderizar()
+
+    expect(screen.getByText(/rascunho em edição/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/pendente/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/protegido/i).length).toBeGreaterThan(0)
+  })
+
+  it('compara rascunho com a semana vigente quando ela existe', async () => {
+    const rotina = rotinaBase()
+    const vigente = {
+      ...gerarPropostaSemanal(rotina, new Date('2026-10-05T12:00:00Z')),
+      confirmadaEm: '2026-10-05T20:00:00.000Z',
+    }
+    // Rascunho novo gerado sobre a mesma rotina — ids novos aparecem
+    // como "novo nesta proposta" na comparação.
+    const rascunho = gerarPropostaSemanal(rotina, new Date('2026-10-12T12:00:00Z'))
+    await gravar({ ...estadoVazio(), rotina, semanaAtiva: vigente, propostaSemanal: rascunho })
+
+    await renderizar()
+
+    expect(screen.getAllByText(/novo nesta proposta|antes:/i).length).toBeGreaterThan(0)
+    // Confirmar continua sendo a única via para alterar a semana ativa.
+    expect(screen.getByRole('button', { name: /confirmar proposta/i })).toBeInTheDocument()
   })
 
   // O acesso à proposta agora é a navegação persistente do shell —

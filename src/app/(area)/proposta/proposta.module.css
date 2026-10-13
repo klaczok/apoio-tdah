@@ -1,0 +1,93 @@
+.estadoRascunho,
+.estadoVigente {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--espaco-2xs);
+  padding: 2px 10px;
+  font-size: var(--texto-xs);
+  font-weight: 700;
+  border-radius: var(--raio-pill);
+}
+
+.estadoRascunho {
+  color: var(--protecao);
+  background: var(--protecao-fundo);
+}
+
+.estadoVigente {
+  color: var(--feedback-sucesso);
+  background: var(--feedback-sucesso-fundo);
+}
+
+.sugestao {
+  display: grid;
+  gap: var(--espaco-2xs);
+  padding: var(--espaco-sm) var(--espaco-md);
+  background: var(--superficie-cartao);
+  border: 1px solid var(--borda-sutil);
+  border-left: 4px solid var(--borda-campo);
+  border-radius: var(--raio-md);
+}
+
+.sugestaoProtegida {
+  border-left-color: var(--protecao);
+  border-left-style: double;
+  border-left-width: 6px;
+}
+
+.sugestaoCabeca {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espaco-xs);
+  align-items: baseline;
+  font-size: var(--texto-sm);
+}
+
+.sugestaoTitulo {
+  font-weight: 700;
+}
+
+.sugestaoMeta {
+  color: var(--texto-secundario);
+}
+
+.tag {
+  padding: 1px 8px;
+  font-size: var(--texto-xs);
+  font-weight: 700;
+  border-radius: var(--raio-pill);
+}
+
+.tagPendente {
+  color: var(--protecao);
+  background: var(--protecao-fundo);
+}
+
+.tagAceita {
+  color: var(--feedback-sucesso);
+  background: var(--feedback-sucesso-fundo);
+}
+
+.tagProtegido {
+  color: var(--protecao);
+  background: var(--protecao-fundo);
+}
+
+.justificativa {
+  margin: 0;
+  color: var(--texto-secundario);
+  font-size: var(--texto-sm);
+}
+
+.comparacao {
+  margin: 0;
+  padding: var(--espaco-2xs) var(--espaco-xs);
+  color: var(--texto-secundario);
+  font-size: var(--texto-xs);
+  background: var(--superficie-suave);
+  border-radius: var(--raio-sm);
+}
+
+.comparacao strong {
+  color: var(--texto-primario);
+}
