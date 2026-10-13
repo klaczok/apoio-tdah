@@ -93,8 +93,8 @@ export default async function DocumentoPage({ searchParams }: Props) {
               descartado ao concluir ou sair.
             </li>
             <li>
-              Antes de ser usado, seu conteúdo vai ao Gemini no nível gratuito — onde os dados
-              enviados podem ser usados pelo provedor para melhorar o serviço.
+              Antes de ser usado, seu conteúdo vai à OpenRouter, que encaminha a um provedor de IA
+              gratuito — onde os dados enviados podem ser usados para melhorar o serviço.
             </li>
           </ul>
           <form
@@ -109,8 +109,8 @@ export default async function DocumentoPage({ searchParams }: Props) {
             </label>
             <label className={styles.opcao}>
               <input type="checkbox" name="consentimentoDocumento" value="aceito" required />
-              Entendo e aceito que o conteúdo do documento seja enviado ao Gemini somente para esta
-              entrevista.
+              Entendo e aceito que o conteúdo do documento seja enviado a um provedor de IA somente
+              para esta entrevista.
             </label>
             <div className={styles.acoes}>
               <button className={`${ui.botao} ${ui.botaoPrimario}`} type="submit">
