@@ -788,7 +788,16 @@ describe('revisao-corrigir', () => {
 
   it('rejeita correção em revisão não concluída', async () => {
     const ontem = somarDiasCivil(dataCivilHoje(), -1)
-    await comSemanaConfirmada()
+    await comSemanaConfirmada((r) =>
+      acrescentarCompromisso(r, {
+        titulo: 'Consulta',
+        diaSemana: diaSemanaDe(ontem),
+        inicio: '10:00',
+        duracaoMin: 30,
+        categoria: 'saude',
+        tipo: 'fixo',
+      })
+    )
     const store = await getStateStore(USUARIO_TESTE)
     const lido = await store.load()
     if (!lido.ok) throw new Error('store indisponível no teste')

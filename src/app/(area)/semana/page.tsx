@@ -429,56 +429,62 @@ export default async function SemanaPage({ searchParams }: Props) {
               aria-label={`Agenda da semana de ${dataCivilParaTexto(segunda)}`}
               style={{ ['--faixa-hora' as string]: `${faixaHoraPct}%` }}
             >
-              <div className={styles.canto} role="columnheader" aria-label="Horários" />
-              {colunas.map(({ resumo: d, coluna }) => {
-                const fds = d.diaSemana === 'sab' || d.diaSemana === 'dom'
-                const ehHoje = d.data === hoje
-                return (
-                  <div
-                    key={d.data}
-                    role="columnheader"
-                    className={`${styles.cabDia} ${ehHoje ? styles.cabDiaHoje : ''} ${fds ? styles.cabDiaFds : ''}`}
-                  >
-                    <span className={styles.cabDiaSemana}>{ABREV_DIA[d.diaSemana]}</span>
-                    <span className={styles.cabDiaNumero}>{d.data.slice(8)}</span>
-                    <span className="sr-only">{dataCivilParaTexto(d.data)}</span>
-                    {ehHoje && <span className="sr-only">(hoje)</span>}
-                    <span className={styles.cabDiaCarga}>
-                      {coluna.ocupadoMin > 0
-                        ? `${minutosParaTexto(coluna.ocupadoMin)} ocupadas`
-                        : 'livre'}
-                    </span>
-                  </div>
-                )
-              })}
-
-              <div className={styles.horas} aria-hidden="true">
-                {horasEixo.map((h) => (
-                  <span key={h.min} style={{ top: `${h.topo}%` }}>
-                    {h.rotulo}
-                  </span>
-                ))}
+              <div className={styles.linhaGrade} role="row">
+                <div className={styles.canto} role="columnheader">
+                  <span className="sr-only">Horários</span>
+                </div>
+                {colunas.map(({ resumo: d, coluna }) => {
+                  const fds = d.diaSemana === 'sab' || d.diaSemana === 'dom'
+                  const ehHoje = d.data === hoje
+                  return (
+                    <div
+                      key={d.data}
+                      role="columnheader"
+                      className={`${styles.cabDia} ${ehHoje ? styles.cabDiaHoje : ''} ${fds ? styles.cabDiaFds : ''}`}
+                    >
+                      <span className={styles.cabDiaSemana}>{ABREV_DIA[d.diaSemana]}</span>
+                      <span className={styles.cabDiaNumero}>{d.data.slice(8)}</span>
+                      <span className="sr-only">{dataCivilParaTexto(d.data)}</span>
+                      {ehHoje && <span className="sr-only">(hoje)</span>}
+                      <span className={styles.cabDiaCarga}>
+                        {coluna.ocupadoMin > 0
+                          ? `${minutosParaTexto(coluna.ocupadoMin)} ocupadas`
+                          : 'livre'}
+                      </span>
+                    </div>
+                  )
+                })}
               </div>
-              {colunas.map(({ resumo: d, coluna }) => {
-                const fds = d.diaSemana === 'sab' || d.diaSemana === 'dom'
-                const ehHoje = d.data === hoje
-                return (
-                  <div
-                    key={d.data}
-                    role="gridcell"
-                    className={`${styles.coluna} ${fds ? styles.colunaFds : ''} ${ehHoje ? styles.colunaHoje : ''}`}
-                    aria-label={`${ROTULOS_DIA[d.diaSemana]} ${dataCivilParaTexto(d.data)}${ehHoje ? ', hoje' : ''}`}
-                  >
-                    <ConteudoColuna
-                      resumo={d}
-                      coluna={coluna}
-                      ehHoje={ehHoje}
-                      agoraPct={agoraPct}
-                      hoje={hoje}
-                    />
-                  </div>
-                )
-              })}
+
+              <div className={styles.linhaGrade} role="row">
+                <div className={styles.horas} role="rowheader" aria-hidden="true">
+                  {horasEixo.map((h) => (
+                    <span key={h.min} style={{ top: `${h.topo}%` }}>
+                      {h.rotulo}
+                    </span>
+                  ))}
+                </div>
+                {colunas.map(({ resumo: d, coluna }) => {
+                  const fds = d.diaSemana === 'sab' || d.diaSemana === 'dom'
+                  const ehHoje = d.data === hoje
+                  return (
+                    <div
+                      key={d.data}
+                      role="gridcell"
+                      className={`${styles.coluna} ${fds ? styles.colunaFds : ''} ${ehHoje ? styles.colunaHoje : ''}`}
+                      aria-label={`${ROTULOS_DIA[d.diaSemana]} ${dataCivilParaTexto(d.data)}${ehHoje ? ', hoje' : ''}`}
+                    >
+                      <ConteudoColuna
+                        resumo={d}
+                        coluna={coluna}
+                        ehHoje={ehHoje}
+                        agoraPct={agoraPct}
+                        hoje={hoje}
+                      />
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           </div>
 

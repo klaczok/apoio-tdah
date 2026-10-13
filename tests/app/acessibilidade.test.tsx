@@ -121,9 +121,11 @@ describe('acessibilidade automatizada das jornadas', () => {
   })
 
   it('histórico (lista e detalhe) não tem violações', async () => {
-    const { rotina, semana } = await comSemanaAtiva()
+    const { instancia } = await comSemanaAtiva()
     const ontem = somarDiasCivil(dataCivilHoje(), -1)
-    let passado = gerarInstanciaDiaria(semana, rotina, ontem, 1)
+    // Reusa a instância de hoje re-datada para ontem — garante itens
+    // independente do dia da semana em que a suíte roda.
+    let passado = { ...instancia, data: ontem, diaSemana: diaSemanaDe(ontem) }
     passado = registrarEstado(passado, passado.itens[0].id, 'realizado')
     passado = concluirRevisao(passado, {}, new Date('2026-10-12T21:00:00Z'))
     const store = await getStateStore(USUARIO_TESTE)
