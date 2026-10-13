@@ -49,6 +49,44 @@ describe('EntrevistadorGemini', () => {
     expect(chamadas[1]).toContain('gemini-3.8-flash')
   })
 
+  it('503 de demanda alta retenta com backoff e aproveita a recuperação', async () => {
+    const corpo503 = JSON.stringify({
+      error: { code: 503, message: 'high demand', status: 'UNAVAILABLE' },
+    })
+    let tentativas = 0
+    global.fetch = jest.fn(async () => {
+      tentativas++
+      if (tentativas < 3) {
+        return { ok: false, status: 503, text: async () => corpo503 } as unknown as Response
+      }
+      return respostaOk('Olá! Como tem sido sua semana?')
+    }) as unknown as typeof fetch
+
+    const resultado = await new EntrevistadorGemini('chave-teste').conversar([])
+    expect(resultado).toEqual({
+      ok: true,
+      mensagem: 'Olá! Como tem sido sua semana?',
+      concluiu: false,
+    })
+    expect(tentativas).toBe(3)
+  })
+
+  it('503 persistente desiste após o backoff — sem loop infinito', async () => {
+    let tentativas = 0
+    global.fetch = jest.fn(async () => {
+      tentativas++
+      return {
+        ok: false,
+        status: 503,
+        text: async () => '{"error":{"status":"UNAVAILABLE"}}',
+      } as unknown as Response
+    }) as unknown as typeof fetch
+
+    const resultado = await new EntrevistadorGemini('chave-teste').conversar([])
+    expect(resultado).toEqual({ ok: false, motivo: 'indisponivel' })
+    expect(tentativas).toBe(3)
+  }, 15_000)
+
   it('404 sem substituto nomeado devolve indisponível', async () => {
     global.fetch = jest.fn(async () => ({
       ok: false,
