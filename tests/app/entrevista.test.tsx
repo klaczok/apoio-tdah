@@ -119,7 +119,7 @@ describe('consentimento informado', () => {
     expect(
       screen.getByRole('progressbar', { name: /progresso da entrevista/i })
     ).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /sair da entrevista/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /sair e perder o progresso/i })).toBeInTheDocument()
   })
 
   it('sem sessão, o consentimento redireciona para login', async () => {

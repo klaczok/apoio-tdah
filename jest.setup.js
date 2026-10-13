@@ -37,6 +37,14 @@ if (!globalThis.Response) {
       this.status = init.status ?? 200
       this.headers = new TestHeaders(init.headers)
     }
+    static json(body, init = {}) {
+      const r = new TestResponse(JSON.stringify(body), init)
+      r._json = body
+      return r
+    }
+    async json() {
+      return this._json ?? (this.body ? JSON.parse(this.body) : null)
+    }
   }
 }
 
