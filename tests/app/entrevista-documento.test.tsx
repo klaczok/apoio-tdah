@@ -83,7 +83,7 @@ describe('anexo do documento efêmero', () => {
       '/entrevista/revisao'
     )
     // Consentimento específico é exigido antes do envio.
-    expect(screen.getByRole('checkbox', { name: /enviado ao Gemini/i })).toBeRequired()
+    expect(screen.getByRole('checkbox', { name: /enviado a um provedor de IA/i })).toBeRequired()
   })
 
   it('anexa um TXT válido com consentimento e extrai o texto na sessão', async () => {

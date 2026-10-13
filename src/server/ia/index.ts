@@ -1,4 +1,4 @@
-import { EntrevistadorGemini, InterpretadorGemini } from './gemini'
+import { EntrevistadorOpenRouter, InterpretadorOpenRouter } from './openrouter'
 import type { EntradaInterpretacao, InterpretadorIA, ResultadoInterpretacao } from './interpretador'
 import type { EntrevistadorIA, MensagemConversa, ResultadoConversa } from './entrevistador'
 
@@ -34,10 +34,10 @@ const entrevistadorFalso: EntrevistadorIA = {
 
 export function getInterpretador(): InterpretadorIA {
   if (process.env.INTERPRETADOR_DRIVER === 'fake') return interpretadorFalso
-  return new InterpretadorGemini()
+  return new InterpretadorOpenRouter()
 }
 
 export function getEntrevistador(): EntrevistadorIA {
   if (process.env.INTERPRETADOR_DRIVER === 'fake') return entrevistadorFalso
-  return new EntrevistadorGemini()
+  return new EntrevistadorOpenRouter()
 }

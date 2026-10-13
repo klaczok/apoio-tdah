@@ -32,9 +32,9 @@ export default async function ConsentimentoPage() {
             oferece diagnóstico, tratamento nem orientação profissional de saúde.
           </li>
           <li>
-            Suas respostas são enviadas ao <strong>Gemini Developer API, no nível gratuito</strong>.
-            Nessa modalidade, os dados enviados <strong>podem ser usados pelo provedor</strong> para
-            melhorar o serviço.
+            Suas respostas são enviadas à <strong>OpenRouter</strong>, que encaminha a conversa a um
+            provedor de IA gratuito. Nessa modalidade, os dados enviados{' '}
+            <strong>podem ser usados pelo provedor</strong> para melhorar o serviço.
           </li>
           <li>
             Nada é enviado antes deste consentimento. Se você anexar um documento depois, um
