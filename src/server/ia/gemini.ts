@@ -16,6 +16,46 @@ function modelo(): string {
   return process.env.GEMINI_MODEL ?? MODELO_PADRAO
 }
 
+// Modelo que respondeu por último — fica em memória do processo para
+// que as rodadas seguintes não repaginem o erro do anterior.
+const estadoGlobal = globalThis as { __modeloGeminiVivo?: string }
+
+// Quando o modelo pedido falha por aposentadoria ou saturação, a API
+// lista o que a chave pode chamar — escolhemos o primeiro "flash"
+// disponível e retentamos com ele, lembrando da escolha no processo.
+async function descobrirModeloVivo(apiKey: string): Promise<string | null> {
+  try {
+    const resposta = await fetch('https://generativelanguage.googleapis.com/v1beta/models', {
+      headers: { 'x-goog-api-key': apiKey },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    })
+    if (!resposta.ok) {
+      console.warn('[ia/gemini] listagem de modelos falhou: HTTP', resposta.status)
+      return null
+    }
+    const corpo = (await resposta.json()) as {
+      models?: { name?: string; supportedGenerationMethods?: string[] }[]
+    }
+    const disponiveis = (corpo.models ?? [])
+      .filter((m) => m.supportedGenerationMethods?.includes('generateContent'))
+      .map((m) => m.name?.replace(/^models\//, '') ?? '')
+      .filter(Boolean)
+    // Prefere "flash" (rápido e barato); qualquer um serve de último caso.
+    const escolhido = disponiveis.find((n) => n.includes('flash')) ?? disponiveis[0] ?? null
+    if (escolhido) {
+      estadoGlobal.__modeloGeminiVivo = escolhido
+      console.warn('[ia/gemini] modelo alternativo descoberto:', escolhido)
+    }
+    return escolhido
+  } catch (erro) {
+    console.warn(
+      '[ia/gemini] listagem de modelos falhou:',
+      erro instanceof Error ? erro.message : String(erro)
+    )
+    return null
+  }
+}
+
 type Chamada =
   { ok: true; texto: string } | { ok: false; motivo: 'indisponivel' | 'invalida' | 'vazia' }
 
@@ -56,7 +96,7 @@ async function chamar(apiKey: string | undefined, prompt: string): Promise<Chama
 
   const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-  let modeloEfetivo = modelo()
+  let modeloEfetivo = estadoGlobal.__modeloGeminiVivo ?? modelo()
   let resposta = await tentar(modeloEfetivo)
   if (resposta?.status === 404) {
     const corpo = await resposta.text().catch(() => '')
@@ -70,13 +110,24 @@ async function chamar(apiKey: string | undefined, prompt: string): Promise<Chama
     }
   }
   // Pico de demanda no nível gratuito é transitório — duas novas
-  // tentativas com backoff antes de desistir da rodada.
+  // tentativas com backoff; se persistir, descobrimos outro modelo
+  // que a chave consegue chamar e tentamos com ele.
   for (const espera of [1000, 2500]) {
     if (resposta?.status !== 503) break
     console.warn('[ia/gemini] demanda alta, retentando em', espera, 'ms')
     await esperar(espera)
     resposta = await tentar(modeloEfetivo)
   }
+  if (resposta?.status === 503 || resposta?.status === 404) {
+    const alternativo = await descobrirModeloVivo(apiKey)
+    if (alternativo && alternativo !== modeloEfetivo) {
+      console.warn(`[ia/gemini] retentando com modelo descoberto: ${alternativo}`)
+      modeloEfetivo = alternativo
+      resposta = await tentar(modeloEfetivo)
+    }
+  }
+  // O modelo que respondeu vira o preferido das próximas chamadas.
+  if (resposta?.ok) estadoGlobal.__modeloGeminiVivo = modeloEfetivo
   if (!resposta) return { ok: false, motivo: 'indisponivel' }
   if (!resposta.ok) {
     const corpo = await resposta.text().catch(() => '')
