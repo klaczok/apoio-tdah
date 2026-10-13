@@ -14,7 +14,7 @@ import {
   type MensagemConversa,
 } from '@/entrevista/conversa'
 
-// A entrevista é uma conversa conduzida pela IA (perfil de psiquiatra
+// A entrevista é uma conversa conduzida pela IA (perfil de organizadora de rotina
 // em primeira consulta de rotina): conhece a pessoa primeiro e faz
 // quantas perguntas precisar — sem número fixo — até ter material para
 // montar o calendário. A transcrição fica em material transitório por

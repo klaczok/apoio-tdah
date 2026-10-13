@@ -1,4 +1,4 @@
-// Contrato do entrevistador de IA: conduz a conversa como um psiquiatra
+// Contrato do entrevistador de IA: conduz a conversa como uma organizadora de rotina
 // em primeira consulta de rotina — conhece a pessoa antes de detalhar
 // horários e só sinaliza o fim quando tem material suficiente para o
 // calendário semanal. A transcrição vive em material transitório

@@ -1,5 +1,5 @@
 // Tipos compartilhados da conversa da entrevista. A IA conduz como um
-// psiquiatra em primeira consulta: conhece a pessoa primeiro e faz
+// organizadora de rotina em primeira conversa: conhece a pessoa antes e faz
 // quantas perguntas precisar — sem número fixo — até ter material para
 // montar um calendário semanal coerente com a vida dela.
 

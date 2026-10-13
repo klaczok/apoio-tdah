@@ -7,7 +7,7 @@ import ui from './ui.module.css'
 import styles from '../(area)/entrevista/entrevista.module.css'
 import type { MensagemConversa } from '@/entrevista/conversa'
 
-// A entrevista é uma conversa conduzida pela IA — como um psiquiatra em
+// A entrevista é uma conversa conduzida pela IA — como uma organizadora de rotina em
 // primeira consulta de rotina. A transcrição fica no servidor em
 // material transitório: sair, recarregar ou fechar preserva o que foi
 // dito até a próxima tentativa (e a saída limpa descarta tudo). Quando

@@ -96,7 +96,38 @@ describe('InterpretadorOpenRouter', () => {
     expect(corpo.messages?.[1]?.content).toContain('23h às 7h')
   })
 
-  it('resposta não-JSON devolve invalida', async () => {
+  it('extrai o JSON mesmo embutido em prosa', async () => {
+    global.fetch = jest.fn(async () =>
+      respostaOk(
+        'Aqui está o calendário: {"sono":{"dormir":"22:00","acordar":"06:00"}} espero ter ajudado!'
+      )
+    ) as unknown as typeof fetch
+    const resultado = await new InterpretadorOpenRouter('sk-or-teste').interpretar({
+      historico: [],
+      documentoTexto: null,
+    })
+    expect(resultado).toEqual({
+      ok: true,
+      interpretacao: { sono: { dormir: '22:00', acordar: '06:00' } },
+    })
+  })
+
+  it('prosa sem JSON dispara uma retentativa de formato antes de desistir', async () => {
+    let chamadas = 0
+    global.fetch = jest.fn(async () => {
+      chamadas++
+      return chamadas === 1 ? respostaOk('não sei') : respostaOk('{"sono":{"dormir":"23:00"}}')
+    }) as unknown as typeof fetch
+
+    const resultado = await new InterpretadorOpenRouter('sk-or-teste').interpretar({
+      historico: [{ papel: 'pessoa', texto: 'durmo 23h' }],
+      documentoTexto: null,
+    })
+    expect(chamadas).toBe(2)
+    expect(resultado).toEqual({ ok: true, interpretacao: { sono: { dormir: '23:00' } } })
+  })
+
+  it('duas respostas sem JSON devolvem invalida', async () => {
     global.fetch = jest.fn(async () => respostaOk('não sei')) as unknown as typeof fetch
     const resultado = await new InterpretadorOpenRouter('sk-or-teste').interpretar({
       historico: [],
