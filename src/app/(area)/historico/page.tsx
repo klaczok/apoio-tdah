@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import styles from '../configurar/configurar.module.css'
 import { redirect } from 'next/navigation'
+import { Aviso, CabecalhoPagina, EstadoVazio } from '@/app/_components/ui'
 import { storeDoUsuario } from '@/server/auth/contexto'
 import { MENSAGENS_ERRO } from '@/server/persistence/mensagens'
 import { sinteseRevisao } from '@/server/dia/modelo'
@@ -35,33 +36,39 @@ export default async function HistoricoPage({
 
   return (
     <main className={styles.container}>
-      <h1 className={styles.title}>Histórico</h1>
-      <p className={styles.intro}>
-        Registro dos dias anteriores: o que foi planejado, os estados marcados na revisão e as
-        decisões tomadas. Consulta — nada aqui altera a rotina nem o que já passou.
-      </p>
-      {mensagemErro && (
-        <p role="alert" className={styles.erro}>
-          {mensagemErro}
-        </p>
-      )}
+      <CabecalhoPagina
+        eyebrow="Consulta"
+        titulo="Histórico"
+        subtitulo="Registro dos dias anteriores: o que foi planejado, os estados marcados na revisão e as decisões tomadas. Consulta — nada aqui altera a rotina nem o que já passou."
+      />
+      {mensagemErro && <Aviso tipo="erro">{mensagemErro}</Aviso>}
 
       {carregado.ok &&
         (dias.length === 0 ? (
-          <p>Nenhum dia anterior com registro ainda.</p>
+          <EstadoVazio titulo="Nenhum dia registrado ainda">
+            <p>O histórico acumula os dias anteriores a hoje conforme as revisões acontecem.</p>
+          </EstadoVazio>
         ) : (
           <ul className={styles.lista}>
-            {dias.map((d) => (
-              <li key={d.data} className={styles.item}>
-                <span className={styles.itemTexto}>
-                  <Link href={`/historico/${d.data}`}>
-                    {ROTULOS_DIA[d.diaSemana]} · {dataCivilParaTexto(d.data)}
-                  </Link>
-                  {' — '}
-                  {d.revisao.concluidaEm ? sinteseRevisao(d) : 'Revisão não concluída'}
-                </span>
-              </li>
-            ))}
+            {dias.map((d) => {
+              const concluida = d.revisao.concluidaEm != null
+              return (
+                <li key={d.data} className={styles.item}>
+                  <span className={styles.itemTexto}>
+                    <Link href={`/historico/${d.data}`}>
+                      {ROTULOS_DIA[d.diaSemana]} · {dataCivilParaTexto(d.data)}
+                    </Link>
+                    {' — '}
+                    {concluida ? sinteseRevisao(d) : 'Revisão não concluída'}
+                  </span>
+                  <span
+                    className={`${styles.tagEtapa} ${concluida ? styles.tagOk : styles.tagPendente}`}
+                  >
+                    {concluida ? 'Revisão concluída' : 'Revisão aberta'}
+                  </span>
+                </li>
+              )
+            })}
           </ul>
         ))}
 

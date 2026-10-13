@@ -158,7 +158,7 @@ describe('dia histórico', () => {
 
     await renderizarDia(ontem)
 
-    expect(screen.getByText(/correções/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/correções/i).length).toBeGreaterThan(0)
     expect(
       screen.getByText(new RegExp(`de ${anterior ?? 'sem registro'}.*descartado`, 'i'))
     ).toBeInTheDocument()

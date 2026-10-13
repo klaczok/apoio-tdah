@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import styles from '../../configurar/configurar.module.css'
+import { Aviso, CabecalhoPagina, Secao } from '@/app/_components/ui'
 import { storeDoUsuario } from '@/server/auth/contexto'
 import { MENSAGENS_ERRO } from '@/server/persistence/mensagens'
 import {
@@ -101,23 +102,25 @@ export default async function HistoricoDiaPage({ params, searchParams }: Props) 
 
   return (
     <main className={styles.container}>
-      <h1 className={styles.title}>
-        {instancia
-          ? `${ROTULOS_DIA[instancia.diaSemana]} · ${dataCivilParaTexto(data)}`
-          : valido
-            ? 'Dia sem registro'
-            : 'Fora do histórico'}
-      </h1>
-      {search.corrigido === '1' && (
-        <p role="status" className={styles.feedback}>
-          Correção registrada.
-        </p>
-      )}
-      {mensagemErro && (
-        <p role="alert" className={styles.erro}>
-          {mensagemErro}
-        </p>
-      )}
+      <CabecalhoPagina
+        eyebrow="Histórico — consulta"
+        titulo={
+          instancia
+            ? `${ROTULOS_DIA[instancia.diaSemana]} · ${dataCivilParaTexto(data)}`
+            : valido
+              ? 'Dia sem registro'
+              : 'Fora do histórico'
+        }
+        subtitulo={
+          instancia
+            ? concluida
+              ? 'Revisão concluída — correções pedem confirmação explícita.'
+              : 'Revisão não concluída — os estados marcados ficam como estavam.'
+            : undefined
+        }
+      />
+      {search.corrigido === '1' && <Aviso tipo="sucesso">Correção registrada.</Aviso>}
+      {mensagemErro && <Aviso tipo="erro">{mensagemErro}</Aviso>}
 
       {!instancia ? (
         !carregado.ok ? null : valido ? (
@@ -127,8 +130,7 @@ export default async function HistoricoDiaPage({ params, searchParams }: Props) 
         )
       ) : (
         <>
-          <section className={styles.etapa} aria-label="Plano do dia">
-            <h2 className={styles.subtitulo}>Plano</h2>
+          <Secao titulo="Plano do dia">
             <ul className={styles.lista}>
               {instancia.itens.map((item) => {
                 const decisao = decisaoTexto(instancia, item.id)
@@ -142,7 +144,12 @@ export default async function HistoricoDiaPage({ params, searchParams }: Props) 
                       {rotuloEstado(instancia.revisao.estados[item.id] ?? null)}
                       {decisao ? ` · decisão: ${decisao}` : ''}
                     </span>
-                    {concluida && <FormCorrecao instancia={instancia} id={item.id} />}
+                    {concluida && (
+                      <details className={styles.edicao}>
+                        <summary className={styles.label}>Corrigir estado registrado</summary>
+                        <FormCorrecao instancia={instancia} id={item.id} />
+                      </details>
+                    )}
                   </li>
                 )
               })}
@@ -157,16 +164,20 @@ export default async function HistoricoDiaPage({ params, searchParams }: Props) 
                       {rotuloEstado(instancia.revisao.estados[t.id] ?? null)}
                       {decisao ? ` · decisão: ${decisao}` : ''}
                     </span>
-                    {concluida && <FormCorrecao instancia={instancia} id={t.id} />}
+                    {concluida && (
+                      <details className={styles.edicao}>
+                        <summary className={styles.label}>Corrigir estado registrado</summary>
+                        <FormCorrecao instancia={instancia} id={t.id} />
+                      </details>
+                    )}
                   </li>
                 )
               })}
             </ul>
-          </section>
+          </Secao>
 
           {instancia.prioridades.length > 0 && (
-            <section className={styles.etapa} aria-label="Prioridades do dia">
-              <h2 className={styles.subtitulo}>Prioridades</h2>
+            <Secao titulo="Prioridades do dia">
               <ul className={styles.lista}>
                 {instancia.prioridades.map((pid) => {
                   const alvo =
@@ -179,11 +190,10 @@ export default async function HistoricoDiaPage({ params, searchParams }: Props) 
                   )
                 })}
               </ul>
-            </section>
+            </Secao>
           )}
 
-          <section className={styles.etapa} aria-label="Revisão do dia">
-            <h2 className={styles.subtitulo}>Revisão</h2>
+          <Secao titulo="Revisão do dia">
             <p>
               {concluida
                 ? `Síntese: ${sinteseRevisao(instancia)}`
@@ -219,7 +229,7 @@ export default async function HistoricoDiaPage({ params, searchParams }: Props) 
                 </ul>
               </>
             )}
-          </section>
+          </Secao>
         </>
       )}
 
