@@ -7,7 +7,12 @@ import { estadoVazio } from '@/server/persistence/estado'
 import { ehDiaSemana } from '@/server/rotina/modelo'
 import { valorSessao } from '@/server/entrevista/sessao'
 import { guardarDocumento, obterDocumento, descartarDocumento } from '@/server/entrevista/documento'
-import { obterRotinaInterpretada, descartarRotinaInterpretada } from '@/server/entrevista/material'
+import {
+  obterRotinaInterpretada,
+  descartarRotinaInterpretada,
+  guardarHistorico,
+  descartarHistorico,
+} from '@/server/entrevista/material'
 import type { ResultadoInterpretacao } from '@/server/ia/interpretador'
 import { autenticarComo, consentirEntrevista, USUARIO_TESTE } from '../helpers/sessao'
 
@@ -17,7 +22,10 @@ process.env.INTERPRETADOR_DRIVER = 'fake'
 
 const globalState = globalThis as {
   __respostaIA?: ResultadoInterpretacao
-  __entradaIA?: { respostas: Record<string, unknown>; documentoTexto: string | null }
+  __entradaIA?: {
+    historico: { papel: string; texto: string }[]
+    documentoTexto: string | null
+  }
 }
 
 function respostaIA(interpretacao: Record<string, unknown>): ResultadoInterpretacao {
@@ -29,9 +37,18 @@ async function sessaoComRespostas() {
   consentirEntrevista(
     await valorSessao(process.env.SESSION_SECRET!, {
       consentimento: 'geral',
-      respostas: { objetivo: { selecionadas: ['estudos'], texto: 'faculdade' } },
+      respostas: { conversa: { selecionadas: [], texto: 'concluída' } },
     })
   )
+  // A conversa concluída fica em material transitório — a marca no
+  // cookie só libera as próximas páginas.
+  guardarHistorico(USUARIO_TESTE, {
+    mensagens: [
+      { papel: 'ia', texto: 'O que importa para você?' },
+      { papel: 'pessoa', texto: 'faculdade' },
+    ],
+    pronta: true,
+  })
   const store = await getStateStore(USUARIO_TESTE)
   const lido = await store.load()
   if (lido.ok) await store.save(estadoVazio(), lido.value.version)
@@ -49,6 +66,7 @@ beforeEach(() => {
   delete (globalThis as { __entrevistaTeste?: string }).__entrevistaTeste
   descartarDocumento(USUARIO_TESTE)
   descartarRotinaInterpretada(USUARIO_TESTE)
+  descartarHistorico(USUARIO_TESTE)
 })
 
 describe('normalizarInterpretacao', () => {
@@ -173,9 +191,7 @@ describe('POST /api/entrevista/gerar', () => {
     const resposta = await postGerar()
     expect(resposta.headers.get('location')).toBe('/entrevista/revisao?gerada=1')
     expect(globalState.__entradaIA?.documentoTexto).toBe('trabalho seg a sex das 9h às 15h')
-    expect(globalState.__entradaIA?.respostas).toEqual({
-      objetivo: { selecionadas: ['estudos'], texto: 'faculdade' },
-    })
+    expect(globalState.__entradaIA?.historico?.[1]?.texto).toBe('faculdade')
     expect(obterRotinaInterpretada(USUARIO_TESTE)?.sono?.acordar).toBe('07:30')
     // Documento transitório descartado após a geração.
     expect(obterDocumento(USUARIO_TESTE)).toBeNull()
@@ -205,7 +221,7 @@ describe('interpretarEntrevista', () => {
   it('propaga motivo de falha do adaptador', async () => {
     const resultado = await interpretarEntrevista(
       { interpretar: async () => ({ ok: false, motivo: 'invalida' }) },
-      { respostas: {}, documentoTexto: null }
+      { historico: [], documentoTexto: null }
     )
     expect(resultado).toEqual({ ok: false, motivo: 'invalida' })
   })

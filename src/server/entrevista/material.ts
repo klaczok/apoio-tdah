@@ -1,18 +1,24 @@
 import type { RotinaRecorrente } from '@/server/rotina/modelo'
-import type { PerguntaEntrevista } from '@/server/ia/entrevistador'
+import type { MensagemConversa } from '@/entrevista/conversa'
 import { descartarDocumento } from './documento'
 
-// Material transitório da entrevista — rotina interpretada e perguntas
-// formuladas pela IA vivem só na memória do processo, indexadas pelo
-// usuário da sessão, com vida curta. A rotina interpretada NÃO entra no
+// Material transitório da entrevista — transcrição da conversa e rotina
+// interpretada vivem só na memória do processo, indexadas pelo usuário
+// da sessão, com vida curta. A rotina interpretada NÃO entra no
 // EstadoPrivado na geração: só a confirmação humana a promove (e aí
 // junto da SemanaAtiva). Abandono ou saída descarta tudo — uma rotina
 // montada manualmente nunca é sobrescrita antes do aceite.
 const TTL_MATERIAL_MS = 30 * 60 * 1000
 
+export type HistoricoEntrevista = {
+  mensagens: MensagemConversa[]
+  /** A IA sinalizou que conhece o suficiente para montar o calendário. */
+  pronta: boolean
+}
+
 const estadoGlobal = globalThis as {
   __rotinasEntrevista?: Map<string, { rotina: RotinaRecorrente; expira: number }>
-  __perguntasEntrevista?: Map<string, { perguntas: PerguntaEntrevista[]; expira: number }>
+  __historicosEntrevista?: Map<string, { historico: HistoricoEntrevista; expira: number }>
 }
 
 function mapa() {
@@ -37,35 +43,35 @@ export function descartarRotinaInterpretada(usuarioId: string): void {
   mapa().delete(usuarioId)
 }
 
-// As perguntas geradas pela IA ficam guardadas por usuário para que
-// "refazer" reencontre as mesmas perguntas e as respostas já dadas.
-function mapaPerguntas() {
-  return (estadoGlobal.__perguntasEntrevista ??= new Map())
+// A transcrição fica por usuário: quem volta da revisão retoma a
+// conversa de onde parou, com todas as mensagens já trocadas.
+function mapaHistoricos() {
+  return (estadoGlobal.__historicosEntrevista ??= new Map())
 }
 
-export function guardarPerguntas(usuarioId: string, perguntas: PerguntaEntrevista[]): void {
-  mapaPerguntas().set(usuarioId, { perguntas, expira: Date.now() + TTL_MATERIAL_MS })
+export function guardarHistorico(usuarioId: string, historico: HistoricoEntrevista): void {
+  mapaHistoricos().set(usuarioId, { historico, expira: Date.now() + TTL_MATERIAL_MS })
 }
 
-export function obterPerguntas(usuarioId: string): PerguntaEntrevista[] | null {
-  const entrada = mapaPerguntas().get(usuarioId)
+export function obterHistorico(usuarioId: string): HistoricoEntrevista | null {
+  const entrada = mapaHistoricos().get(usuarioId)
   if (!entrada) return null
   if (entrada.expira < Date.now()) {
-    mapaPerguntas().delete(usuarioId)
+    mapaHistoricos().delete(usuarioId)
     return null
   }
-  return entrada.perguntas
+  return entrada.historico
 }
 
-export function descartarPerguntas(usuarioId: string): void {
-  mapaPerguntas().delete(usuarioId)
+export function descartarHistorico(usuarioId: string): void {
+  mapaHistoricos().delete(usuarioId)
 }
 
 // Descarte total do material transitório da entrevista — documento,
-// perguntas e rotina interpretada — nos caminhos de confirmação, saída
-// e abandono.
+// transcrição e rotina interpretada — nos caminhos de confirmação,
+// saída e abandono.
 export function descartarMaterial(usuarioId: string): void {
   descartarDocumento(usuarioId)
   descartarRotinaInterpretada(usuarioId)
-  descartarPerguntas(usuarioId)
+  descartarHistorico(usuarioId)
 }

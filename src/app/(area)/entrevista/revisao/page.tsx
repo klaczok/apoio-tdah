@@ -18,7 +18,7 @@ type Props = { searchParams: Promise<{ gerada?: string; erro?: string }> }
 const ERROS: Record<string, string> = {
   indisponivel: 'A IA não está disponível agora. Você pode tentar de novo ou montar manualmente.',
   invalida: 'A resposta da IA não veio em formato utilizável. Tente de novo.',
-  vazia: 'A IA não conseguiu interpretar suas respostas. Tente de novo ou monte manualmente.',
+  vazia: 'A IA não conseguiu interpretar a conversa. Tente de novo ou monte manualmente.',
   entrada: 'Algo nos dados não foi aceito. Revise a proposta e tente confirmar de novo.',
 }
 
@@ -161,7 +161,7 @@ export default async function RevisaoPage({ searchParams }: Props) {
         subtitulo={
           gerada
             ? 'Um ponto de partida, não uma decisão — nada entra no calendário sem a sua confirmação.'
-            : 'Suas respostas estão registradas nesta sessão — a proposta é montada a seguir.'
+            : 'Sua conversa está registrada nesta sessão — a proposta é montada a seguir.'
         }
       />
 
@@ -212,7 +212,8 @@ export default async function RevisaoPage({ searchParams }: Props) {
             </Link>
           </div>
           <p className={styles.nota}>
-            Refazer a entrevista descarta as respostas atuais — elas não ficam salvas.
+            Refazer a entrevista retoma a conversa de onde você parou — a transcrição fica guardada
+            só nesta sessão.
           </p>
         </section>
       )}

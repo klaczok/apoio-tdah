@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers'
 import { ENTREVISTA_COOKIE } from './cookie'
-import type { RespostasEntrevista } from '@/entrevista/etapas'
+import type { RespostasEntrevista } from '@/entrevista/conversa'
 
 export { ENTREVISTA_COOKIE }
 
