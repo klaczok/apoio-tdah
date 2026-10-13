@@ -74,6 +74,13 @@ describe('convite da entrevista', () => {
     render(await HojePage({ searchParams: Promise.resolve({}) }))
     expect(screen.getByRole('link', { name: /começar entrevista/i })).toBeInTheDocument()
   })
+
+  it('o convite some no Hoje quando já há semana ativa — sem beco sem saída', async () => {
+    await comSemanaAtiva()
+    const { default: HojePage } = await import('@/app/(area)/hoje/page')
+    render(await HojePage({ searchParams: Promise.resolve({}) }))
+    expect(screen.queryByRole('link', { name: /começar entrevista/i })).not.toBeInTheDocument()
+  })
 })
 
 describe('consentimento informado', () => {

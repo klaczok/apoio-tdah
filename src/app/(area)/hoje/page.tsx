@@ -516,7 +516,10 @@ export default async function HojePage({ searchParams }: Props) {
       ) : (
         <EstadoVazio titulo="Nenhum planejamento para hoje">
           <p>Quando a semana estiver planejada, os passos de hoje aparecem aqui.</p>
-          <ConviteEntrevista />
+          {/* O convite vale só até a primeira semana confirmada — com
+              semanaAtiva, a entrevista não reabre e o clique cairia no
+              redirecionamento para /semana. */}
+          {carregado.ok && !carregado.value.dados.semanaAtiva && <ConviteEntrevista />}
         </EstadoVazio>
       )}
 
