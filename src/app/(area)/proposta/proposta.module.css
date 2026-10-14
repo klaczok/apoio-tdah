@@ -91,3 +91,28 @@
 .comparacao strong {
   color: var(--texto-primario);
 }
+
+.opiniao {
+  display: grid;
+  gap: var(--espaco-xs);
+  padding: var(--espaco-sm) var(--espaco-md);
+  background: var(--superficie-cartao);
+  border: 1px solid var(--borda-sutil);
+  border-radius: var(--raio-md);
+}
+
+.opiniao p {
+  margin: 0;
+  font-size: var(--texto-sm);
+}
+
+.textarea {
+  padding: var(--espaco-xs) var(--espaco-md);
+  font-size: var(--texto-base);
+  font-family: inherit;
+  color: var(--texto-primario);
+  background: var(--superficie-cartao);
+  border: 1px solid var(--borda-campo);
+  border-radius: var(--raio-md);
+  resize: vertical;
+}

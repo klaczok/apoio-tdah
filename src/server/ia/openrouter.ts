@@ -1,5 +1,7 @@
 import type { EntradaInterpretacao, InterpretadorIA, ResultadoInterpretacao } from './interpretador'
 import type { EntrevistadorIA, MensagemConversa, ResultadoConversa } from './entrevistador'
+import type { ConselheiroIA, EntradaConselho, ResultadoConselho } from './conselheiro'
+import { LIMITE_TEXTO_IA } from '@/server/proposta/opiniao'
 
 // Adaptador do OpenRouter — API compatível com OpenAI
 // (chat/completions), usado exclusivamente no servidor. A chave sai de
@@ -33,6 +35,14 @@ const PROMPT_INTERPRETACAO = [
   '"preferenciaCarga":"leve|equilibrada|intensa"}',
   'Cada compromisso precisa de dia da semana, horário de início e fim e o nome da tarefa — é com eles que o calendário do cliente será montado.',
   'Não invente horários, durações ou compromissos que a pessoa não mencionou.',
+].join('\n')
+
+const PROMPT_CONSELHO = [
+  'Você é uma organizadora de rotina dando uma opinião pontual sobre o calendário semanal que a pessoa já montou sozinha.',
+  'Responda em português brasileiro, com acolhimento e sem julgamento — você não é médica nem dá diagnóstico, só organiza rotinas.',
+  'A pessoa conta o que mais pesa para ela na organização; foque as sugestões nessa dor, olhando os blocos e os horários que ela montou.',
+  'Traga de 3 a 5 sugestões práticas e curtas, em texto corrido — uma por parágrafo, sem listas numeradas, sem JSON e sem títulos.',
+  'Não reordene a semana nem proponha um novo calendário: aponte o que pode melhorar e deixe a decisão com a pessoa.',
 ].join('\n')
 
 type MensagemChat = { role: 'system' | 'user' | 'assistant'; content: string }
@@ -217,5 +227,24 @@ export class InterpretadorOpenRouter implements InterpretadorIA {
     }
     if (!interpretacao) return { ok: false, motivo: 'invalida' }
     return { ok: true, interpretacao }
+  }
+}
+
+// Conselheiro: mesma chamada de chat, mas a resposta é prosa — nada de
+// JSON nem de formato para o parse falhar. O texto é limitado antes de
+// virar OpiniaoSemanal persistida.
+export class ConselheiroOpenRouter implements ConselheiroIA {
+  constructor(private readonly apiKey = process.env.OPENROUTER_API_KEY) {}
+
+  async aconselhar(entrada: EntradaConselho): Promise<ResultadoConselho> {
+    const chamada = await chamar(this.apiKey, [
+      { role: 'system', content: PROMPT_CONSELHO },
+      {
+        role: 'user',
+        content: `Calendário da semana:\n${entrada.resumoSemana}\n\nO que mais pesa para mim na organização: ${entrada.dor}`,
+      },
+    ])
+    if (!chamada.ok) return chamada
+    return { ok: true, texto: chamada.texto.slice(0, LIMITE_TEXTO_IA) }
   }
 }

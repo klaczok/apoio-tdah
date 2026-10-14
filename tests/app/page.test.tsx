@@ -13,7 +13,7 @@ describe('Página inicial pública', () => {
       '/cadastro'
     )
     expect(screen.getAllByRole('link', { name: /entrar/i })[0]).toHaveAttribute('href', '/login')
-    expect(screen.getByText(/conversa que vira calendário/i)).toBeInTheDocument()
+    expect(screen.getByText(/sua semana, do seu jeito/i)).toBeInTheDocument()
     expect(screen.getByText(/privado por padrão/i)).toBeInTheDocument()
   })
 })

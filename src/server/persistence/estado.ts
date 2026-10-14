@@ -1,13 +1,14 @@
 import { ehDataCivil } from '../tempo'
 import { rotinaVazia, validarRotina, type RotinaRecorrente } from '../rotina/modelo'
 import { validarProposta, type PropostaSemanal } from '../proposta/modelo'
+import { validarOpiniao, type OpiniaoSemanal } from '../proposta/opiniao'
 import { validarInstancia, type InstanciaDiaria } from '../dia/modelo'
 import { perfilVazio, validarPerfil, type PerfilOnboarding } from '../perfil/modelo'
 import { SchemaInvalidoError } from './schema-error'
 
 export { SchemaInvalidoError }
 
-export const SCHEMA_VERSION = 6
+export const SCHEMA_VERSION = 7
 
 export type EstadoPrivado = {
   notasPorDia: Record<string, string>
@@ -19,6 +20,8 @@ export type EstadoPrivado = {
   // que origina as instâncias diárias. Nenhuma muda a rotina recorrente.
   propostaSemanal: PropostaSemanal | null
   semanaAtiva: PropostaSemanal | null
+  // Opinião consultiva da IA sobre a semana — texto livre, nunca ajusta nada.
+  opiniaoIA: OpiniaoSemanal | null
   // Instâncias diárias por data civil — cópias independentes da semana ativa.
   dias: Record<string, InstanciaDiaria>
 }
@@ -30,6 +33,7 @@ export function estadoVazio(): EstadoPrivado {
     perfil: perfilVazio(),
     propostaSemanal: null,
     semanaAtiva: null,
+    opiniaoIA: null,
     dias: {},
   }
 }
@@ -69,6 +73,13 @@ function migrarDeV5(raw: unknown): unknown {
   return { ...(raw as Record<string, unknown>), perfil: perfilVazio() }
 }
 
+function migrarDeV6(raw: unknown): unknown {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    throw new SchemaInvalidoError('estado v6 não é um objeto')
+  }
+  return { ...(raw as Record<string, unknown>), opiniaoIA: null }
+}
+
 export function validarEstadoPrivado(raw: unknown, schemaVersion: number): EstadoPrivado {
   if (schemaVersion > SCHEMA_VERSION) {
     throw new SchemaInvalidoError(`versão de schema não suportada: ${schemaVersion}`)
@@ -79,6 +90,7 @@ export function validarEstadoPrivado(raw: unknown, schemaVersion: number): Estad
   if (schemaVersion <= 3) dados = migrarDeV3(dados)
   if (schemaVersion <= 4) dados = migrarDeV4(dados)
   if (schemaVersion <= 5) dados = migrarDeV5(dados)
+  if (schemaVersion <= 6) dados = migrarDeV6(dados)
 
   if (typeof dados !== 'object' || dados === null || Array.isArray(dados)) {
     throw new SchemaInvalidoError('estado não é um objeto')
@@ -88,6 +100,7 @@ export function validarEstadoPrivado(raw: unknown, schemaVersion: number): Estad
     rotina,
     propostaSemanal,
     semanaAtiva,
+    opiniaoIA,
     dias,
     perfil,
   } = dados as Record<string, unknown>
@@ -121,6 +134,7 @@ export function validarEstadoPrivado(raw: unknown, schemaVersion: number): Estad
     rotina: validarRotina(rotina),
     propostaSemanal: propostaSemanal == null ? null : validarProposta(propostaSemanal),
     semanaAtiva: semanaAtiva == null ? null : validarProposta(semanaAtiva),
+    opiniaoIA: opiniaoIA == null ? null : validarOpiniao(opiniaoIA),
     dias: diasValidados,
     perfil: validarPerfil(perfil),
   }

@@ -38,4 +38,5 @@ export const MENSAGENS_ERRO: Record<string, string> = {
     'Veja os conflitos e a capacidade do dia de destino e marque a confirmação para trocar.',
   'confirmacao-correcao':
     'A correção de um dia já revisado é explícita: marque a confirmação para registrar.',
+  ia: 'A IA não respondeu agora. Sua semana continua intacta — tente de novo quando quiser.',
 }

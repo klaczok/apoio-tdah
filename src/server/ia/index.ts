@@ -1,9 +1,15 @@
-import { EntrevistadorOpenRouter, InterpretadorOpenRouter } from './openrouter'
+import {
+  ConselheiroOpenRouter,
+  EntrevistadorOpenRouter,
+  InterpretadorOpenRouter,
+} from './openrouter'
 import type { EntradaInterpretacao, InterpretadorIA, ResultadoInterpretacao } from './interpretador'
 import type { EntrevistadorIA, MensagemConversa, ResultadoConversa } from './entrevistador'
+import type { ConselheiroIA, EntradaConselho, ResultadoConselho } from './conselheiro'
 
 export type { EntradaInterpretacao, InterpretadorIA, ResultadoInterpretacao }
 export type { EntrevistadorIA, MensagemConversa, ResultadoConversa }
+export type { ConselheiroIA, EntradaConselho, ResultadoConselho }
 
 // Interpretador falso para testes e desenvolvimento local sem chave:
 // devolve o que estiver em globalThis.__respostaIA — mesma forma do
@@ -32,6 +38,22 @@ const entrevistadorFalso: EntrevistadorIA = {
     if (Array.isArray(programada)) return programada.shift() ?? { ok: false, motivo: 'vazia' }
     return programada ?? { ok: false, motivo: 'indisponivel' }
   },
+}
+
+// Conselheiro falso: devolve globalThis.__respostaConselhoIA e registra a
+// entrada em __entradaConselhoIA para as asserções dos testes.
+const conselheiroFalso: ConselheiroIA = {
+  async aconselhar(entrada) {
+    ;(globalThis as { __entradaConselhoIA?: EntradaConselho }).__entradaConselhoIA = entrada
+    const resposta = (globalThis as { __respostaConselhoIA?: ResultadoConselho })
+      .__respostaConselhoIA
+    return resposta ?? { ok: false, motivo: 'indisponivel' }
+  },
+}
+
+export function getConselheiro(): ConselheiroIA {
+  if (process.env.INTERPRETADOR_DRIVER === 'fake') return conselheiroFalso
+  return new ConselheiroOpenRouter()
 }
 
 export function getInterpretador(): InterpretadorIA {
