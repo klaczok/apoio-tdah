@@ -11,9 +11,9 @@ const BENEFICIOS = [
   },
   {
     icone: '✎',
-    titulo: 'Conversa que vira calendário',
+    titulo: 'Sua semana, do seu jeito',
     texto:
-      'Uma entrevista guiada por IA pergunta sobre a sua rotina e propõe a semana pronta. Você revisa tudo antes de aceitar.',
+      'Você monta o calendário no seu ritmo e, se quiser, pede uma opinião da IA — ela sugere, você decide.',
   },
   {
     icone: '♡',
@@ -32,15 +32,15 @@ const BENEFICIOS = [
 const PASSOS = [
   {
     numero: '1',
-    titulo: 'Conte sua rotina',
+    titulo: 'Monte sua rotina',
     texto:
-      'Cinco perguntas acolhedoras sobre seus horários, suas prioridades e sua energia. Leva poucos minutos.',
+      'Compromissos, horários e energia: você configura a semana do seu jeito, em poucos minutos.',
   },
   {
     numero: '2',
-    titulo: 'Revise a proposta',
+    titulo: 'Revise e peça uma opinião',
     texto:
-      'A IA monta um rascunho de semana equilibrada. Você ajusta o que quiser — nada é promovido sem o seu aceite.',
+      'A proposta fica em rascunho até você confirmar. Se quiser, a IA aponta o que pode melhorar — sem mexer em nada.',
   },
   {
     numero: '3',
@@ -85,9 +85,8 @@ export default function Home() {
             no <em>seu ritmo</em>.
           </h1>
           <p className={styles.lead}>
-            O Ritmo transforma uma conversa simples sobre a sua rotina em um plano de semana
-            realista — com horários, pausas e espaço para o que importa. Menos tela para decidir,
-            mais vida para viver.
+            O Ritmo ajuda você a montar um plano de semana realista — com horários, pausas e espaço
+            para o que importa. Menos tela para decidir, mais vida para viver.
           </p>
           <div className={styles.acoes}>
             <Link
@@ -144,8 +143,7 @@ export default function Home() {
             Organizar a semana não precisa pesar.
           </h2>
           <p className={styles.lead}>
-            Crie sua conta, responda a cinco perguntas e receba uma proposta de rotina feita para o
-            seu ritmo.
+            Crie sua conta, monte sua rotina e receba uma proposta de semana feita para o seu ritmo.
           </p>
           <Link
             className={`${ui.botao} ${ui.botaoPrimario} ${styles.acaoPrincipal}`}

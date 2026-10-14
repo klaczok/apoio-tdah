@@ -10,6 +10,6 @@ module.exports = [
     },
   },
   {
-    ignores: ['.next/**', 'out/**', 'build/**', 'coverage/**', 'next-env.d.ts'],
+    ignores: ['.next/**', '.vercel/**', 'out/**', 'build/**', 'coverage/**', 'next-env.d.ts'],
   },
 ]

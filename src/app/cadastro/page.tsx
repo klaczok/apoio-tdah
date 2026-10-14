@@ -43,8 +43,8 @@ export default async function CadastroPage({ searchParams }: Props) {
       <main className={styles.container}>
         <h1 className={styles.title}>Criar sua conta</h1>
         <p className={styles.lead}>
-          E-mail, senha e algumas perguntas rápidas — quanto mais você contar agora, menos a
-          entrevista precisa perguntar depois.
+          E-mail, senha e algumas perguntas rápidas — quanto mais você contar agora, menos precisa
+          configurar depois.
         </p>
         <form className={styles.form} action="/api/auth/cadastro" method="post" noValidate>
           {erro === 'indisponivel' && (

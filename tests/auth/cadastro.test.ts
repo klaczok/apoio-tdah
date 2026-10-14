@@ -77,6 +77,7 @@ describe('POST /api/auth/cadastro', () => {
         perfil: expect.anything(),
         propostaSemanal: null,
         semanaAtiva: null,
+        opiniaoIA: null,
         dias: {},
       })
     }

@@ -2,18 +2,24 @@ import Link from 'next/link'
 import styles from '../configurar/configurar.module.css'
 import prop from './proposta.module.css'
 import { Aviso, CabecalhoPagina, EstadoVazio } from '@/app/_components/ui'
-import { ConviteEntrevista } from '@/app/_components/convite-entrevista'
 import { redirect } from 'next/navigation'
 import { storeDoUsuario } from '@/server/auth/contexto'
 import { MENSAGENS_ERRO } from '@/server/persistence/mensagens'
 import { dataHoraParaTexto } from '@/server/tempo'
 import { ROTULOS_CATEGORIA, ROTULOS_DIA } from '@/server/rotina/modelo'
 import type { DiaProposta, PropostaSemanal, Sugestao } from '@/server/proposta/modelo'
+import { LIMITE_DOR, type OpiniaoSemanal } from '@/server/proposta/opiniao'
 
 export const dynamic = 'force-dynamic'
 
 type Props = {
-  searchParams: Promise<{ gerada?: string; confirmada?: string; salvo?: string; erro?: string }>
+  searchParams: Promise<{
+    gerada?: string
+    confirmada?: string
+    salvo?: string
+    opiniao?: string
+    erro?: string
+  }>
 }
 
 function horario(s: Sugestao): string {
@@ -171,6 +177,48 @@ function DiaProposta({
   )
 }
 
+// Opinião consultiva da IA: a pessoa diz o que mais pesa e recebe
+// sugestões em texto — nada é ajustado sozinho; quem muda a semana é
+// ela, nas ações de cada sugestão.
+function SecaoOpiniao({ opiniao }: { opiniao: OpiniaoSemanal | null }) {
+  return (
+    <section className={styles.form} aria-label="Opinião da IA">
+      <h2 className={styles.subtitulo}>Quer uma opinião sobre a sua semana?</h2>
+      {opiniao && (
+        <div className={prop.opiniao}>
+          {opiniao.texto.split(/\n{2,}/).map((paragrafo) => (
+            <p key={paragrafo.slice(0, 40)}>{paragrafo}</p>
+          ))}
+          <p className={prop.comparacao}>
+            Gerada em {dataHoraParaTexto(opiniao.geradaEm)} a partir do que você contou: “
+            {opiniao.dor}”
+          </p>
+        </div>
+      )}
+      <form className={styles.form} action="/api/proposta/opiniao" method="post">
+        <label className={styles.label} htmlFor="dor">
+          O que mais pesa para você na organização da semana?
+        </label>
+        <textarea
+          className={prop.textarea}
+          id="dor"
+          name="dor"
+          rows={3}
+          maxLength={LIMITE_DOR}
+          required
+          placeholder="Ex.: os dias ficam apertados e eu nunca sei onde encaixar descanso"
+        />
+        <button className={styles.secundaria} type="submit">
+          {opiniao ? 'Pedir nova opinião' : 'Pedir opinião da IA'}
+        </button>
+      </form>
+      <p className={styles.dica}>
+        A IA só opina — ela não mexe em nenhum bloco. Quem ajusta a semana é você.
+      </p>
+    </section>
+  )
+}
+
 function FormGerar({ texto }: { texto: string }) {
   return (
     <form action="/api/proposta" method="post">
@@ -191,6 +239,7 @@ export default async function PropostaPage({ searchParams }: Props) {
   const erroCarga = !carregado.ok
   const rascunho = carregado.ok ? carregado.value.dados.propostaSemanal : null
   const vigente = carregado.ok ? carregado.value.dados.semanaAtiva : null
+  const opiniaoIA = carregado.ok ? carregado.value.dados.opiniaoIA : null
   const mensagemErro = params.erro ? MENSAGENS_ERRO[params.erro] : undefined
 
   // Mapa da semana ativa por id: base da comparação antes → proposta.
@@ -226,6 +275,9 @@ export default async function PropostaPage({ searchParams }: Props) {
       )}
       {params.confirmada === '1' && <Aviso tipo="sucesso">Proposta confirmada.</Aviso>}
       {params.salvo === '1' && <Aviso tipo="sucesso">Sugestão atualizada.</Aviso>}
+      {params.opiniao === '1' && (
+        <Aviso tipo="sucesso">Opinião registrada — ela não muda nenhum bloco da semana.</Aviso>
+      )}
       {(mensagemErro || erroCarga) && (
         <Aviso tipo="erro">
           {mensagemErro ?? 'Não foi possível carregar sua proposta agora. Tente recarregar.'}
@@ -241,7 +293,6 @@ export default async function PropostaPage({ searchParams }: Props) {
             rascunho até você confirmar.
           </p>
           <FormGerar texto="Gerar proposta semanal" />
-          <ConviteEntrevista />
         </EstadoVazio>
       )}
 
@@ -261,6 +312,7 @@ export default async function PropostaPage({ searchParams }: Props) {
             </button>
           </form>
           <FormGerar texto="Gerar novamente" />
+          <SecaoOpiniao opiniao={opiniaoIA} />
         </>
       )}
 
@@ -273,6 +325,7 @@ export default async function PropostaPage({ searchParams }: Props) {
             <DiaProposta key={dia.diaSemana} dia={dia} editavel={false} vigente={vigenteMap} />
           ))}
           <FormGerar texto="Gerar nova proposta" />
+          <SecaoOpiniao opiniao={opiniaoIA} />
         </>
       )}
 

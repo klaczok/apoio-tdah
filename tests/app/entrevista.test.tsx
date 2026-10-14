@@ -69,10 +69,10 @@ describe('convite da entrevista', () => {
     await expect(EntrevistaPage()).rejects.toThrow('NEXT_REDIRECT')
   })
 
-  it('o convite aparece no painel de Hoje sem planejamento', async () => {
+  it('o painel de Hoje não empurra a entrevista — o fluxo manual vem primeiro', async () => {
     const { default: HojePage } = await import('@/app/(area)/hoje/page')
     render(await HojePage({ searchParams: Promise.resolve({}) }))
-    expect(screen.getByRole('link', { name: /começar entrevista/i })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /começar entrevista/i })).not.toBeInTheDocument()
   })
 
   it('o convite some no Hoje quando já há semana ativa — sem beco sem saída', async () => {
